@@ -35,6 +35,8 @@ function CoDrive() {
   const [endName, setEndName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [tripImage, setTripImage] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [expenseName, setExpenseName] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseNotes, setExpenseNotes] = useState('');
@@ -66,6 +68,7 @@ function CoDrive() {
       }
       if (createOpen) {
         setCreateOpen(false);
+        setEditingId(null);
         return true;
       }
       if (expenseOpen) {
@@ -105,10 +108,9 @@ function CoDrive() {
 
   const createReady =
     tripName.trim().length > 0 &&
-    startName.trim().length > 0 &&
-    endName.trim().length > 0 &&
     startDate.trim().length > 0 &&
-    endDate.trim().length > 0;
+    endDate.trim().length > 0 &&
+    (editingId !== null || (startName.trim().length > 0 && endName.trim().length > 0));
   const amountValue = parseFloat(expenseAmount);
   const expenseReady =
     expenseName.trim().length > 0 &&
@@ -116,27 +118,125 @@ function CoDrive() {
     !Number.isNaN(amountValue) &&
     amountValue > 0;
 
+  const clearTripForm = () => {
+    setTripName('');
+    setStartName('');
+    setEndName('');
+    setStartDate('');
+    setEndDate('');
+    setTripImage(null);
+    setEditingId(null);
+  };
+
+  const openCreate = () => {
+    clearTripForm();
+    setCreateOpen(true);
+  };
+
+  const openEdit = (id: string) => {
+    const current = trips.find((item) => item.id === id);
+    if (!current) return;
+    const parts = current.dates.split(/\s+–\s+/);
+    setEditingId(id);
+    setTripName(current.title);
+    setStartName(current.waypoints.find((stop) => stop.detail === 'Start')?.title ?? '');
+    setEndName(current.waypoints.find((stop) => stop.detail === 'Destination')?.title ?? '');
+    setStartDate(parts[0] ?? '');
+    setEndDate(parts.length > 1 ? parts.slice(1).join(' – ') : '');
+    setTripImage(current.image);
+    setCreateOpen(true);
+  };
+
+  const closeTripForm = () => {
+    setCreateOpen(false);
+    setEditingId(null);
+  };
+
+  const placeWaypoints = (current: Trip, start: string, end: string) => {
+    let waypoints = current.waypoints.map((stop) => {
+      if (stop.detail === 'Start' && start) return { ...stop, title: start };
+      if (stop.detail === 'Destination' && end) return { ...stop, title: end };
+      return stop;
+    });
+    if (start && !waypoints.some((stop) => stop.detail === 'Start')) {
+      waypoints = [
+        {
+          id: `${current.id}-start`,
+          title: start,
+          detail: 'Start',
+          proposedBy: 'You',
+          likes: 1,
+          liked: true,
+          image: IMG.coast,
+          time: '9:00 AM',
+          stop: 'Departure',
+          pin: '#E26D5A',
+        },
+        ...waypoints,
+      ];
+    }
+    if (end && !waypoints.some((stop) => stop.detail === 'Destination')) {
+      waypoints = [
+        ...waypoints,
+        {
+          id: `${current.id}-end`,
+          title: end,
+          detail: 'Destination',
+          proposedBy: 'You',
+          likes: 1,
+          liked: true,
+          image: IMG.hills,
+          time: '—',
+          stop: 'Arrival',
+          pin: '#5B7CFA',
+        },
+      ];
+    }
+    return waypoints;
+  };
+
   const handleCreate = () => {
     if (!createReady) return;
+    const title = tripName.trim();
+    const start = startName.trim();
+    const end = endName.trim();
+    const dates = `${startDate.trim()} – ${endDate.trim()}`;
+    const image = tripImage ?? IMG.road;
+
+    if (editingId) {
+      updateTrip(editingId, (current) => ({
+        ...current,
+        title,
+        routeName: current.routeName === current.title ? title : current.routeName,
+        dates,
+        image,
+        leg: start && end ? `${start} to ${end}` : current.leg,
+        waypoints: placeWaypoints(current, start, end),
+      }));
+      clearTripForm();
+      setCreateOpen(false);
+      return;
+    }
+
     const id = Date.now().toString();
     const you: Crew = { id: 'you', name: 'You', initial: 'Y', color: '#E26D5A' };
     const next: Trip = {
       id,
-      title: tripName.trim(),
-      routeName: tripName.trim(),
-      dates: `${startDate.trim()} – ${endDate.trim()}`,
-      image: IMG.road,
+      title,
+      routeName: title,
+      dates,
+      image,
       crew: [you, CREW[1], CREW[2]],
       budget: 500,
       duration: '—',
-      leg: `${startName.trim()} to ${endName.trim()}`,
+      leg: `${start} to ${end}`,
       progress: 0.08,
       rest: { place: 'Nearest safe pull-off', distance: '—', note: 'We’ll mark it once you’re moving' },
       expenses: [],
       waypoints: [
         {
           id: `${id}-start`,
-          title: startName.trim(),
+          title: start,
           detail: 'Start',
           proposedBy: 'You',
           likes: 1,
@@ -148,7 +248,7 @@ function CoDrive() {
         },
         {
           id: `${id}-end`,
-          title: endName.trim(),
+          title: end,
           detail: 'Destination',
           proposedBy: 'You',
           likes: 1,
@@ -162,11 +262,7 @@ function CoDrive() {
     };
     setTrips((current) => [next, ...current]);
     setSelectedId(id);
-    setTripName('');
-    setStartName('');
-    setEndName('');
-    setStartDate('');
-    setEndDate('');
+    clearTripForm();
     setCreateOpen(false);
     setInviteOpen(true);
   };
@@ -243,8 +339,9 @@ function CoDrive() {
                 trips={trips}
                 profileUri={profileUri}
                 onOpen={openTrip}
-                onCreate={() => setCreateOpen(true)}
+                onCreate={openCreate}
                 onDelete={deleteTrip}
+                onEdit={openEdit}
                 onProfile={() => setProfileOpen(true)}
               />
             ) : null}
@@ -279,6 +376,7 @@ function CoDrive() {
 
         {createOpen ? (
           <CreateTripDialog
+            editing={editingId !== null}
             name={tripName}
             start={startName}
             end={endName}
@@ -287,11 +385,13 @@ function CoDrive() {
             onEnd={setEndName}
             startDate={startDate}
             endDate={endDate}
+            image={tripImage}
             onStartDate={setStartDate}
             onEndDate={setEndDate}
-            onCreate={handleCreate}
-            onClose={() => setCreateOpen(false)}
-            canCreate={createReady}
+            onImage={setTripImage}
+            onSubmit={handleCreate}
+            onClose={closeTripForm}
+            canSubmit={createReady}
           />
         ) : null}
 

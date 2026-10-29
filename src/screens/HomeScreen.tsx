@@ -13,6 +13,7 @@ export function HomeScreen({
   onOpen,
   onCreate,
   onDelete,
+  onEdit,
   onProfile,
 }: {
   trips: Trip[];
@@ -20,6 +21,7 @@ export function HomeScreen({
   onOpen: (id: string) => void;
   onCreate: () => void;
   onDelete: (id: string) => void;
+  onEdit: (id: string) => void;
   onProfile: () => void;
 }) {
   return (
@@ -60,7 +62,15 @@ export function HomeScreen({
             <AvatarStack people={trip.crew} size={26} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.remove}
+            style={styles.iconButton}
+            onPress={() => onEdit(trip.id)}
+            activeOpacity={0.7}
+            accessibilityLabel={`Edit ${trip.title}`}
+          >
+            <Ionicons name="pencil" size={15} color={C.muted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.iconButton}
             onPress={() => onDelete(trip.id)}
             activeOpacity={0.7}
             accessibilityLabel={`Delete ${trip.title}`}
@@ -122,13 +132,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  remove: {
+  iconButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 4,
   },
   empty: {
     fontSize: 14,

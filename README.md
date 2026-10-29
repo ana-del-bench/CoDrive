@@ -16,7 +16,7 @@ npm start
 
 ## What you can do
 
-- **Home.** Start a trip with a name, start, end, and dates. Open an expedition, or tap the X on a card to delete it. The profile picture starts as an anonymous icon; tap it to choose a photo or switch back.
+- **Home.** Start a trip with a name, start, end, dates, and an optional picture. Open an expedition, tap the pencil to edit it, or tap the X to delete it. The profile picture starts as an anonymous icon; tap it to choose a photo or switch back.
 - **Invite.** After you create a trip, share a link or QR code, then continue to Plan.
 - **Plan.** Review proposed stops, like one, or suggest a new waypoint.
 - **Drive.** Follow the route and today’s itinerary. The first visit opens a driver-rotation reminder. The bluetooth control opens the connection-lost notice.
