@@ -1,0 +1,222 @@
+import type { Crew, ExpenseIcon, Trip } from './types';
+
+export const IMG = {
+  beach: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=900&q=70',
+  surf: 'https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&fit=crop&w=900&q=70',
+  coast: 'https://images.unsplash.com/photo-1506953823976-52e1fdc0149a?auto=format&fit=crop&w=900&q=70',
+  snorkel: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=900&q=70',
+  sunset: 'https://images.unsplash.com/photo-1414609245224-afa02bfb3fda?auto=format&fit=crop&w=900&q=70',
+  resort: 'https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=900&q=70',
+  road: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=900&q=70',
+  falls: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=900&q=70',
+  hills: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=900&q=70',
+  lake: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=900&q=70',
+  peak: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=900&q=70',
+};
+
+export const CREW: Crew[] = [
+  { id: 'ava', name: 'Ava', initial: 'A', color: '#E26D5A' },
+  { id: 'bo', name: 'Bo', initial: 'B', color: '#3AA99A' },
+  { id: 'cam', name: 'Cam', initial: 'C', color: '#E2B045' },
+  { id: 'drew', name: 'Drew', initial: 'D', color: '#5B7CFA' },
+];
+
+export const TRIPS: Trip[] = [
+  {
+    id: 'north-shore',
+    title: 'North Shore Getaway',
+    routeName: 'North Shore',
+    dates: 'Apr 04 – 07, 2026',
+    image: IMG.beach,
+    crew: CREW,
+    budget: 500,
+    duration: '2 hr 14 min',
+    leg: 'Current leg: Pipeline, Haleiwa, Waimea Bay, and your crew’s favorite pull-offs.',
+    progress: 0.55,
+    rest: {
+      place: 'Dillingham Airfield Rest Area',
+      distance: '0.8 mi',
+      note: '0.8 mi ahead',
+    },
+    waypoints: [
+      {
+        id: 'pipeline',
+        title: 'Pipeline Beach',
+        detail: '10 min surf check',
+        proposedBy: 'Ava',
+        likes: 6,
+        liked: false,
+        image: IMG.surf,
+        time: '10:05 AM',
+        stop: '10 min stop',
+        pin: '#E26D5A',
+      },
+      {
+        id: 'haleiwa',
+        title: 'Haleiwa Town',
+        detail: 'Shrimp plates and a stretch',
+        proposedBy: 'Bo',
+        likes: 5,
+        liked: false,
+        image: IMG.coast,
+        time: '10:35 AM',
+        stop: '25 min stop',
+        pin: '#E2B045',
+      },
+      {
+        id: 'sharks',
+        title: "Shark's Cove",
+        detail: '5 min snorkel stop',
+        proposedBy: 'Bo',
+        likes: 4,
+        liked: false,
+        image: IMG.snorkel,
+        time: '11:05 AM',
+        stop: '5 min stop',
+        pin: '#3AA99A',
+      },
+      {
+        id: 'sunset',
+        title: 'Sunset Beach',
+        detail: '10 min sunset stop',
+        proposedBy: 'Cam',
+        likes: 7,
+        liked: true,
+        image: IMG.sunset,
+        time: '11:30 AM',
+        stop: '10 min stop',
+        pin: '#5B7CFA',
+      },
+      {
+        id: 'turtle',
+        title: 'Turtle Bay Resort',
+        detail: 'Overnight on the point',
+        proposedBy: 'Drew',
+        likes: 5,
+        liked: false,
+        image: IMG.resort,
+        time: '12:10 PM',
+        stop: 'Arrival',
+        pin: '#8B6CC4',
+      },
+    ],
+    expenses: [
+      { id: 'shrimp', title: "Shrimp Plate at Giovanni's", details: 'Paid by Bo · Split 4 ways', amount: 38, icon: 'food' },
+      { id: 'snorkel', title: "Snorkel rental at Shark's Cove", details: 'Paid by Ava · Split 4 ways', amount: 25, icon: 'snorkel' },
+      { id: 'stay', title: 'Turtle Bay Resort stay', details: 'Paid by Cam · Split 4 ways', amount: 320, icon: 'stay' },
+      { id: 'ice', title: "Shave ice at Matsumoto's", details: 'Paid by Bo · Split 4 ways', amount: 18, icon: 'treat' },
+      { id: 'gas', title: 'Gas at Haleiwa Shell', details: 'Paid by Ava · Split 4 ways', amount: 42, icon: 'gas' },
+    ],
+  },
+  {
+    id: 'west-coast',
+    title: 'Mainland West Coast',
+    routeName: 'West Coast',
+    dates: 'Apr 20 – 25, 2026',
+    image: IMG.road,
+    crew: [CREW[0], CREW[1], CREW[2]],
+    budget: 800,
+    duration: '6 hr 40 min',
+    leg: 'Current leg: Santa Barbara toward Big Sur, staying on the coast road.',
+    progress: 0.32,
+    rest: { place: 'Gaviota Rest Stop', distance: '4.2 mi', note: '4.2 mi ahead' },
+    waypoints: [
+      {
+        id: 'sb',
+        title: 'Santa Barbara',
+        detail: 'Coffee and the pier',
+        proposedBy: 'Ava',
+        likes: 3,
+        liked: false,
+        image: IMG.coast,
+        time: '8:40 AM',
+        stop: 'Departure',
+        pin: '#E26D5A',
+      },
+      {
+        id: 'sur',
+        title: 'Big Sur Pull-off',
+        detail: 'Overlook and photos',
+        proposedBy: 'Cam',
+        likes: 8,
+        liked: true,
+        image: IMG.hills,
+        time: '12:15 PM',
+        stop: '20 min stop',
+        pin: '#3AA99A',
+      },
+      {
+        id: 'monterey',
+        title: 'Monterey Wharf',
+        detail: 'Late lunch on the water',
+        proposedBy: 'Bo',
+        likes: 4,
+        liked: false,
+        image: IMG.lake,
+        time: '3:05 PM',
+        stop: 'Arrival',
+        pin: '#5B7CFA',
+      },
+    ],
+    expenses: [
+      { id: 'fuel', title: 'Fuel in Santa Barbara', details: 'Paid by Ava · Split 3 ways', amount: 64, icon: 'gas' },
+    ],
+  },
+  {
+    id: 'big-island',
+    title: 'Big Island Wilderness',
+    routeName: 'Big Island',
+    dates: 'Apr 30 – May 3, 2026',
+    image: IMG.falls,
+    crew: [CREW[1], CREW[3], CREW[2]],
+    budget: 650,
+    duration: '3 hr 05 min',
+    leg: 'Current leg: Akaka Falls down toward the volcano overlook.',
+    progress: 0.18,
+    rest: { place: 'Honomu Wayside', distance: '1.4 mi', note: '1.4 mi ahead' },
+    waypoints: [
+      {
+        id: 'akaka',
+        title: 'Akaka Falls',
+        detail: 'Short rainforest walk',
+        proposedBy: 'Bo',
+        likes: 6,
+        liked: true,
+        image: IMG.falls,
+        time: '9:15 AM',
+        stop: '40 min stop',
+        pin: '#3AA99A',
+      },
+      {
+        id: 'volcano',
+        title: 'Volcano Overlook',
+        detail: 'Steam vents at the rim',
+        proposedBy: 'Drew',
+        likes: 5,
+        liked: false,
+        image: IMG.peak,
+        time: '1:00 PM',
+        stop: '30 min stop',
+        pin: '#E26D5A',
+      },
+    ],
+    expenses: [],
+  },
+];
+
+export function money(amount: number) {
+  return `$${amount.toFixed(2)}`;
+}
+
+export function slug(title: string) {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'trip';
+}
+
+export function iconFor(name: string): ExpenseIcon {
+  const n = name.toLowerCase();
+  if (n.includes('gas') || n.includes('fuel')) return 'gas';
+  if (n.includes('hotel') || n.includes('stay') || n.includes('resort')) return 'stay';
+  if (n.includes('snorkel') || n.includes('surf') || n.includes('ocean')) return 'snorkel';
+  if (n.includes('ice') || n.includes('dessert') || n.includes('shave')) return 'treat';
+  return 'food';
+}
