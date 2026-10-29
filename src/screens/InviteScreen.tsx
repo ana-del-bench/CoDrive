@@ -11,8 +11,8 @@ import { QrMark } from '../components/QrMark';
 export function InviteScreen({ trip, onDone }: { trip: Trip; onDone: () => void }) {
   const insets = useSafeAreaInsets();
   const [copied, setCopied] = useState(false);
-  const joinSlug = slug(trip.title);
-  const url = `https://codrive.app/join/${joinSlug}`;
+  const joinKey = trip.shareCode ?? slug(trip.title);
+  const url = `https://codrive.app/join/${joinKey}`;
 
   const copyLink = async () => {
     try {
@@ -62,9 +62,15 @@ export function InviteScreen({ trip, onDone }: { trip: Trip; onDone: () => void 
           <QrMark />
         </View>
         <Text style={styles.hint}>Scan this code or share the link to join your trip.</Text>
+        {trip.shareCode ? (
+          <View style={styles.codeBlock}>
+            <Text style={styles.codeLabel}>Share code</Text>
+            <Text style={styles.code}>{trip.shareCode}</Text>
+          </View>
+        ) : null}
         <TouchableOpacity style={styles.link} onPress={copyLink} activeOpacity={0.85}>
           <Text style={styles.linkText} numberOfLines={1}>
-            {copied ? 'Link copied' : `codrive.app/join/${joinSlug}`}
+            {copied ? 'Link copied' : `codrive.app/join/${joinKey}`}
           </Text>
           <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color={C.teal} />
         </TouchableOpacity>
@@ -128,6 +134,22 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: C.muted,
     paddingHorizontal: 12,
+  },
+  codeBlock: {
+    marginTop: 18,
+    alignItems: 'center',
+  },
+  codeLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.muted,
+  },
+  code: {
+    marginTop: 4,
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: 2,
+    color: C.ink,
   },
   link: {
     marginTop: 16,

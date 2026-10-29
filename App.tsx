@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { createTrip, isServerTrip, listTrips, logExpense, type ApiTrip } from './src/api';
 import { TabBar } from './src/components/TabBar';
 import { CREW, iconFor, IMG, TRIPS } from './src/data';
 import { ConnectionDialog } from './src/screens/ConnectionDialog';
@@ -16,6 +17,29 @@ import { ProfileDialog } from './src/screens/ProfileDialog';
 import { RotationDialog } from './src/screens/RotationDialog';
 import { C } from './src/theme';
 import type { Crew, Tab, Trip } from './src/types';
+
+function tripFromApi(row: ApiTrip): Trip {
+  const created = new Date(row.created_at);
+  const dates = Number.isNaN(created.getTime())
+    ? 'Dates TBD'
+    : created.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+  return {
+    id: row.id,
+    shareCode: row.share_code,
+    title: row.title,
+    routeName: row.title,
+    dates,
+    image: IMG.road,
+    crew: [{ id: 'you', name: 'You', initial: 'Y', color: '#E26D5A' }],
+    waypoints: [],
+    expenses: [],
+    budget: Number(row.budget) > 0 ? Number(row.budget) : 500,
+    duration: '—',
+    leg: row.title,
+    progress: 0,
+    rest: { place: 'Nearest safe pull-off', distance: '—', note: 'We’ll mark it once you’re moving' },
+  };
+}
 
 function CoDrive() {
   const insets = useSafeAreaInsets();
@@ -35,6 +59,7 @@ function CoDrive() {
   const [endName, setEndName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [tripBudget, setTripBudget] = useState('');
   const [tripImage, setTripImage] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expenseName, setExpenseName] = useState('');
@@ -42,8 +67,29 @@ function CoDrive() {
   const [expenseNotes, setExpenseNotes] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileUri, setProfileUri] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [logging, setLogging] = useState(false);
+  const [expenseError, setExpenseError] = useState<string | null>(null);
 
   const trip = trips.find((item) => item.id === selectedId) ?? trips[0];
+
+  useEffect(() => {
+    let active = true;
+    listTrips()
+      .then((rows) => {
+        if (!active) return;
+        setTrips((current) => {
+          const known = new Set(current.map((item) => item.id));
+          const saved = rows.filter((row) => !known.has(row.id)).map(tripFromApi);
+          return saved.length > 0 ? [...saved, ...current] : current;
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (tab === 'drive' && trip && !rotationSeen) {
@@ -106,10 +152,13 @@ function CoDrive() {
     }
   };
 
+  const budgetValue = parseFloat(tripBudget);
   const createReady =
     tripName.trim().length > 0 &&
     startDate.trim().length > 0 &&
     endDate.trim().length > 0 &&
+    !Number.isNaN(budgetValue) &&
+    budgetValue > 0 &&
     (editingId !== null || (startName.trim().length > 0 && endName.trim().length > 0));
   const amountValue = parseFloat(expenseAmount);
   const expenseReady =
@@ -124,12 +173,14 @@ function CoDrive() {
     setEndName('');
     setStartDate('');
     setEndDate('');
+    setTripBudget('');
     setTripImage(null);
     setEditingId(null);
   };
 
   const openCreate = () => {
     clearTripForm();
+    setCreateError(null);
     setCreateOpen(true);
   };
 
@@ -143,6 +194,7 @@ function CoDrive() {
     setEndName(current.waypoints.find((stop) => stop.detail === 'Destination')?.title ?? '');
     setStartDate(parts[0] ?? '');
     setEndDate(parts.length > 1 ? parts.slice(1).join(' – ') : '');
+    setTripBudget(String(current.budget));
     setTripImage(current.image);
     setCreateOpen(true);
   };
@@ -150,6 +202,8 @@ function CoDrive() {
   const closeTripForm = () => {
     setCreateOpen(false);
     setEditingId(null);
+    setCreateError(null);
+    setCreating(false);
   };
 
   const placeWaypoints = (current: Trip, start: string, end: string) => {
@@ -195,13 +249,14 @@ function CoDrive() {
     return waypoints;
   };
 
-  const handleCreate = () => {
-    if (!createReady) return;
+  const handleCreate = async () => {
+    if (!createReady || creating) return;
     const title = tripName.trim();
     const start = startName.trim();
     const end = endName.trim();
     const dates = `${startDate.trim()} – ${endDate.trim()}`;
     const image = tripImage ?? IMG.road;
+    const budget = budgetValue;
 
     if (editingId) {
       updateTrip(editingId, (current) => ({
@@ -209,6 +264,7 @@ function CoDrive() {
         title,
         routeName: current.routeName === current.title ? title : current.routeName,
         dates,
+        budget,
         image,
         leg: start && end ? `${start} to ${end}` : current.leg,
         waypoints: placeWaypoints(current, start, end),
@@ -218,16 +274,28 @@ function CoDrive() {
       return;
     }
 
-    const id = Date.now().toString();
+    setCreating(true);
+    setCreateError(null);
+    let created: { id: string; share_code: string };
+    try {
+      created = await createTrip(title, budget);
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : 'Could not create the trip');
+      setCreating(false);
+      return;
+    }
+
+    const id = created.id;
     const you: Crew = { id: 'you', name: 'You', initial: 'Y', color: '#E26D5A' };
     const next: Trip = {
       id,
+      shareCode: created.share_code,
       title,
       routeName: title,
       dates,
       image,
       crew: [you, CREW[1], CREW[2]],
-      budget: 500,
+      budget,
       duration: '—',
       leg: `${start} to ${end}`,
       progress: 0.08,
@@ -263,6 +331,7 @@ function CoDrive() {
     setTrips((current) => [next, ...current]);
     setSelectedId(id);
     clearTripForm();
+    setCreating(false);
     setCreateOpen(false);
     setInviteOpen(true);
   };
@@ -270,12 +339,14 @@ function CoDrive() {
   const addStop = () => {
     const title = draftStop.trim();
     if (!title || !trip) return;
-    updateTrip(trip.id, (current) => ({
+    const tripId = trip.id;
+    const localId = Date.now().toString();
+    updateTrip(tripId, (current) => ({
       ...current,
       waypoints: [
         ...current.waypoints,
         {
-          id: Date.now().toString(),
+          id: localId,
           title,
           detail: 'Suggested stop',
           proposedBy: 'You',
@@ -301,17 +372,41 @@ function CoDrive() {
     }));
   };
 
-  const handleLog = () => {
-    if (!expenseReady || !trip) return;
+  const handleLog = async () => {
+    if (!expenseReady || !trip || logging) return;
+    const notes = expenseNotes.trim();
+    const paidBy = notes.match(/paid by\s+([^·,\n]+)/i)?.[1]?.trim() || 'You';
+    const category = iconFor(expenseName);
+    let expenseId = Date.now().toString();
+
+    if (isServerTrip(trip.id)) {
+      setLogging(true);
+      setExpenseError(null);
+      try {
+        const saved = await logExpense(trip.id, {
+          paid_by_user: paidBy,
+          amount: amountValue,
+          category,
+          description: notes,
+        });
+        expenseId = saved.id;
+      } catch (error) {
+        setExpenseError(error instanceof Error ? error.message : 'Could not log the expense');
+        setLogging(false);
+        return;
+      }
+      setLogging(false);
+    }
+
     updateTrip(trip.id, (current) => ({
       ...current,
       expenses: [
         {
-          id: Date.now().toString(),
+          id: expenseId,
           title: expenseName.trim(),
-          details: expenseNotes.trim(),
+          details: notes,
           amount: amountValue,
-          icon: iconFor(expenseName),
+          icon: category,
         },
         ...current.expenses,
       ],
@@ -385,13 +480,17 @@ function CoDrive() {
             onEnd={setEndName}
             startDate={startDate}
             endDate={endDate}
+            budget={tripBudget}
             image={tripImage}
             onStartDate={setStartDate}
             onEndDate={setEndDate}
+            onBudget={setTripBudget}
             onImage={setTripImage}
             onSubmit={handleCreate}
             onClose={closeTripForm}
             canSubmit={createReady}
+            submitting={creating}
+            error={createError}
           />
         ) : null}
 
@@ -405,8 +504,13 @@ function CoDrive() {
             onAmount={setExpenseAmount}
             onNotes={setExpenseNotes}
             onLog={handleLog}
-            onClose={() => setExpenseOpen(false)}
+            onClose={() => {
+              setExpenseOpen(false);
+              setExpenseError(null);
+            }}
             canLog={expenseReady}
+            submitting={logging}
+            error={expenseError}
           />
         ) : null}
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { C } from '../theme';
 
 export function PrimaryButton({
@@ -8,21 +8,23 @@ export function PrimaryButton({
   icon,
   compact,
   disabled,
+  loading,
 }: {
   label: string;
   onPress: () => void;
   icon?: ReactNode;
   compact?: boolean;
   disabled?: boolean;
+  loading?: boolean;
 }) {
   return (
     <TouchableOpacity
       style={[styles.primary, compact && styles.compact, disabled && styles.disabled]}
       onPress={onPress}
-      disabled={disabled}
+      disabled={disabled || loading}
       activeOpacity={0.86}
     >
-      {icon}
+      {loading ? <ActivityIndicator color={C.white} /> : icon}
       <Text style={styles.text}>{label}</Text>
     </TouchableOpacity>
   );

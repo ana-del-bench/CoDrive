@@ -1,7 +1,8 @@
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton, QuietButton } from '../components/Buttons';
 import { Dialog, dialogStyles } from '../components/Dialog';
 import { Field } from '../components/Field';
+import { C } from '../theme';
 
 export function LogExpenseDialog({
   tripTitle,
@@ -14,6 +15,8 @@ export function LogExpenseDialog({
   onLog,
   onClose,
   canLog,
+  submitting,
+  error,
 }: {
   tripTitle: string;
   name: string;
@@ -25,6 +28,8 @@ export function LogExpenseDialog({
   onLog: () => void;
   onClose: () => void;
   canLog: boolean;
+  submitting?: boolean;
+  error?: string | null;
 }) {
   return (
     <Dialog onClose={onClose}>
@@ -40,11 +45,26 @@ export function LogExpenseDialog({
           placeholder="Who paid, and if it was split"
           multiline
         />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
         <View style={dialogStyles.actions}>
-          <PrimaryButton label="Log Expense" onPress={onLog} disabled={!canLog} />
+          <PrimaryButton
+            label={submitting ? 'Logging…' : 'Log Expense'}
+            onPress={onLog}
+            disabled={!canLog || submitting}
+            loading={submitting}
+          />
           <QuietButton label="Cancel" onPress={onClose} />
         </View>
       </ScrollView>
     </Dialog>
   );
 }
+
+const styles = StyleSheet.create({
+  error: {
+    marginTop: 12,
+    fontSize: 13,
+    lineHeight: 18,
+    color: C.muted,
+  },
+});

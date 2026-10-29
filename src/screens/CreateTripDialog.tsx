@@ -14,16 +14,20 @@ export function CreateTripDialog({
   end,
   startDate,
   endDate,
+  budget,
   image,
   onName,
   onStart,
   onEnd,
   onStartDate,
   onEndDate,
+  onBudget,
   onImage,
   onSubmit,
   onClose,
   canSubmit,
+  submitting,
+  error,
 }: {
   editing: boolean;
   name: string;
@@ -31,16 +35,20 @@ export function CreateTripDialog({
   end: string;
   startDate: string;
   endDate: string;
+  budget: string;
   image: string | null;
   onName: (value: string) => void;
   onStart: (value: string) => void;
   onEnd: (value: string) => void;
   onStartDate: (value: string) => void;
   onEndDate: (value: string) => void;
+  onBudget: (value: string) => void;
   onImage: (uri: string) => void;
   onSubmit: () => void;
   onClose: () => void;
   canSubmit: boolean;
+  submitting?: boolean;
+  error?: string | null;
 }) {
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -71,13 +79,16 @@ export function CreateTripDialog({
       <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>
         <Text style={dialogStyles.title}>{editing ? 'Edit Trip' : 'Start a New Trip'}</Text>
         <Text style={dialogStyles.sub}>
-          {editing ? 'Update the name, dates, or picture.' : 'Name the road, then bring your crew along.'}
+          {editing
+            ? 'Update the name, dates, budget, or picture.'
+            : 'Name the road, set a budget, then bring your crew along.'}
         </Text>
         <Field label="Trip name" value={name} onChangeText={onName} placeholder="North Shore Getaway" />
         <Field label="Start" value={start} onChangeText={onStart} placeholder="Ala Moana" />
         <Field label="End" value={end} onChangeText={onEnd} placeholder="Turtle Bay" />
         <Field label="Start date" value={startDate} onChangeText={onStartDate} placeholder="Apr 04, 2026" />
         <Field label="End date" value={endDate} onChangeText={onEndDate} placeholder="Apr 07, 2026" />
+        <Field label="Budget" value={budget} onChangeText={onBudget} placeholder="500" keyboardType="decimal-pad" />
         <Text style={styles.pictureLabel}>Picture</Text>
         <TouchableOpacity onPress={choosePhoto} activeOpacity={0.85} disabled={busy} accessibilityLabel="Add a trip picture">
           {image ? (
@@ -91,8 +102,14 @@ export function CreateTripDialog({
         </TouchableOpacity>
         {image ? <Text style={styles.change}>Tap the picture to change it</Text> : null}
         {note ? <Text style={styles.note}>{note}</Text> : null}
+        {error ? <Text style={styles.note}>{error}</Text> : null}
         <View style={dialogStyles.actions}>
-          <PrimaryButton label={editing ? 'Save' : 'Create Trip'} onPress={onSubmit} disabled={!canSubmit || busy} />
+          <PrimaryButton
+            label={editing ? 'Save' : submitting ? 'Creating…' : 'Create Trip'}
+            onPress={onSubmit}
+            disabled={!canSubmit || busy || submitting}
+            loading={submitting}
+          />
           <QuietButton label="Cancel" onPress={onClose} />
         </View>
       </ScrollView>

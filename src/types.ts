@@ -37,6 +37,7 @@ export interface RestStop {
 
 export interface Trip {
   id: string;
+  shareCode?: string;
   title: string;
   routeName: string;
   dates: string;
