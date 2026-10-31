@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { PrimaryButton, QuietButton } from '../components/Buttons';
 import { Dialog, dialogStyles } from '../components/Dialog';
+import { DateField } from '../components/DateField';
 import { Field } from '../components/Field';
 import { C } from '../theme';
 
@@ -86,9 +87,9 @@ export function CreateTripDialog({
         <Field label="Trip name" value={name} onChangeText={onName} placeholder="North Shore Getaway" />
         <Field label="Start" value={start} onChangeText={onStart} placeholder="Ala Moana" />
         <Field label="End" value={end} onChangeText={onEnd} placeholder="Turtle Bay" />
-        <Field label="Start date" value={startDate} onChangeText={onStartDate} placeholder="Apr 04, 2026" />
-        <Field label="End date" value={endDate} onChangeText={onEndDate} placeholder="Apr 07, 2026" />
-        <Field label="Budget" value={budget} onChangeText={onBudget} placeholder="500" keyboardType="decimal-pad" />
+        <DateField label="Start date" value={startDate} onChange={onStartDate} placeholder="Select a date" />
+        <DateField label="End date" value={endDate} onChange={onEndDate} placeholder="Select a date" min={startDate} />
+        <Field label="Budget" value={budget} onChangeText={onBudget} placeholder="500" numeric />
         <Text style={styles.pictureLabel}>Picture</Text>
         <TouchableOpacity onPress={choosePhoto} activeOpacity={0.85} disabled={busy} accessibilityLabel="Add a trip picture">
           {image ? (

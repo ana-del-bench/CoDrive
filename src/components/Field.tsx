@@ -1,4 +1,5 @@
 import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { sanitizeDecimal } from '../input';
 import { C } from '../theme';
 
 export function Field({
@@ -6,26 +7,35 @@ export function Field({
   value,
   onChangeText,
   placeholder,
-  keyboardType,
+  numeric,
   multiline,
+  maxLength,
+  onSubmitEditing,
 }: {
   label: string;
   value: string;
   onChangeText: (value: string) => void;
   placeholder: string;
-  keyboardType?: 'default' | 'decimal-pad';
+  /** Only accepts digits and one decimal point, and opens the number keypad. */
+  numeric?: boolean;
   multiline?: boolean;
+  maxLength?: number;
+  onSubmitEditing?: () => void;
 }) {
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
         value={value}
-        onChangeText={onChangeText}
+        onChangeText={numeric ? (text: string) => onChangeText(sanitizeDecimal(text)) : onChangeText}
         placeholder={placeholder}
         placeholderTextColor={C.faint}
-        keyboardType={keyboardType}
+        keyboardType={numeric ? 'decimal-pad' : 'default'}
+        inputMode={numeric ? 'decimal' : undefined}
         multiline={multiline}
+        maxLength={maxLength}
+        onSubmitEditing={onSubmitEditing}
+        returnKeyType={onSubmitEditing ? 'done' : undefined}
         textAlignVertical={multiline ? 'top' : 'center'}
         style={[styles.input, multiline && styles.notes]}
       />

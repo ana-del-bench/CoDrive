@@ -2,6 +2,7 @@ import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View 
 import { Ionicons } from '@expo/vector-icons';
 import { C, cardShadow, layout } from '../theme';
 import type { Trip } from '../types';
+import { StatusBadge } from '../components/StatusBadge';
 import { TripHeader } from '../components/TripHeader';
 
 export function PlanScreen({
@@ -27,10 +28,11 @@ export function PlanScreen({
         {trip.waypoints.map((stop) => (
           <View key={stop.id} style={styles.card}>
             <Image source={{ uri: stop.image }} style={styles.photo} />
+            <StatusBadge status={stop.status} />
             <View style={styles.body}>
               <Text style={styles.title}>{stop.title}</Text>
               <Text style={styles.meta}>
-                {stop.detail} · Proposed by {stop.proposedBy}
+                {stop.note || stop.detail} · Proposed by {stop.proposedBy}
               </Text>
               <TouchableOpacity style={styles.likeRow} onPress={() => onLike(stop.id)} activeOpacity={0.7}>
                 <Ionicons
@@ -54,9 +56,6 @@ export function PlanScreen({
           onSubmitEditing={onAdd}
           returnKeyType="done"
         />
-        <TouchableOpacity style={styles.add} onPress={onAdd} activeOpacity={0.85}>
-          <Ionicons name="add" size={22} color={C.white} />
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -118,13 +117,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 15,
     color: C.ink,
-  },
-  add: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: C.teal,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

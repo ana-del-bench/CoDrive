@@ -1,5 +1,5 @@
 export type Tab = 'home' | 'plan' | 'drive' | 'costs';
-export type ExpenseIcon = 'food' | 'snorkel' | 'stay' | 'treat' | 'gas';
+export type ExpenseType = 'food' | 'housing' | 'recreation' | 'gas' | 'retail' | 'necessities' | 'other';
 
 export interface Crew {
   id: string;
@@ -8,10 +8,14 @@ export interface Crew {
   color: string;
 }
 
+export type WaypointStatus = 'suggested' | 'selected' | 'vetoed';
+
 export interface Waypoint {
   id: string;
   title: string;
   detail: string;
+  /** Optional note from whoever suggested the stop; shown in place of `detail`. */
+  note?: string;
   proposedBy: string;
   likes: number;
   liked: boolean;
@@ -19,14 +23,16 @@ export interface Waypoint {
   time: string;
   stop: string;
   pin: string;
+  status: WaypointStatus;
 }
 
 export interface Expense {
   id: string;
   title: string;
-  details: string;
+  paidBy: string[];
+  notes: string;
   amount: number;
-  icon: ExpenseIcon;
+  type: ExpenseType;
 }
 
 export interface RestStop {

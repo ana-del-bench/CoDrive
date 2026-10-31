@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { money } from '../data';
+import { expenseDetails } from '../expenses';
 import { C, cardShadow, layout } from '../theme';
 import type { Trip } from '../types';
 import { PrimaryButton } from '../components/Buttons';
@@ -36,10 +37,10 @@ export function CostsScreen({ trip, onLog }: { trip: Trip; onLog: () => void }) 
         ) : (
           trip.expenses.map((expense) => (
             <View key={expense.id} style={styles.row}>
-              <ExpenseGlyph kind={expense.icon} />
+              <ExpenseGlyph kind={expense.type} />
               <View style={styles.copy}>
                 <Text style={styles.title}>{expense.title}</Text>
-                <Text style={styles.details}>{expense.details}</Text>
+                <Text style={styles.details}>{expenseDetails(expense.paidBy, expense.notes)}</Text>
               </View>
               <Text style={styles.amount}>{money(expense.amount)}</Text>
             </View>

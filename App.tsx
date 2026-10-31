@@ -3,8 +3,11 @@ import { BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createTrip, isServerTrip, listTrips, logExpense, type ApiTrip } from './src/api';
+import { MapBackdrop } from './src/components/MapBackdrop';
 import { TabBar } from './src/components/TabBar';
-import { CREW, iconFor, IMG, TRIPS } from './src/data';
+import { CREW, IMG, TRIPS } from './src/data';
+import { formatTripDates, parseTripDates } from './src/dates';
+import { orderPayers, payerOptions, togglePayer } from './src/expenses';
 import { ConnectionDialog } from './src/screens/ConnectionDialog';
 import { CostsScreen } from './src/screens/CostsScreen';
 import { CreateTripDialog } from './src/screens/CreateTripDialog';
@@ -15,8 +18,9 @@ import { LogExpenseDialog } from './src/screens/LogExpenseDialog';
 import { PlanScreen } from './src/screens/PlanScreen';
 import { ProfileDialog } from './src/screens/ProfileDialog';
 import { RotationDialog } from './src/screens/RotationDialog';
+import { StopNoteDialog } from './src/screens/StopNoteDialog';
 import { C } from './src/theme';
-import type { Crew, Tab, Trip } from './src/types';
+import type { Crew, ExpenseType, Tab, Trip } from './src/types';
 
 function tripFromApi(row: ApiTrip): Trip {
   const created = new Date(row.created_at);
@@ -54,6 +58,8 @@ function CoDrive() {
   const [rotationSeen, setRotationSeen] = useState(false);
   const [rotationNote, setRotationNote] = useState<string | null>(null);
   const [draftStop, setDraftStop] = useState('');
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [stopNote, setStopNote] = useState('');
   const [tripName, setTripName] = useState('');
   const [startName, setStartName] = useState('');
   const [endName, setEndName] = useState('');
@@ -62,6 +68,8 @@ function CoDrive() {
   const [tripBudget, setTripBudget] = useState('');
   const [tripImage, setTripImage] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [expenseType, setExpenseType] = useState<ExpenseType | null>(null);
+  const [expensePaidBy, setExpensePaidBy] = useState<string[]>([]);
   const [expenseName, setExpenseName] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseNotes, setExpenseNotes] = useState('');
@@ -73,6 +81,9 @@ function CoDrive() {
   const [expenseError, setExpenseError] = useState<string | null>(null);
 
   const trip = trips.find((item) => item.id === selectedId) ?? trips[0];
+  const payers = payerOptions(trip?.crew ?? []);
+  // Drop picks that belong to another trip's crew if the selected trip changed.
+  const activePayers = expensePaidBy.filter((name) => payers.includes(name));
 
   useEffect(() => {
     let active = true;
@@ -100,6 +111,10 @@ function CoDrive() {
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (noteOpen) {
+        setNoteOpen(false);
+        return true;
+      }
       if (inviteOpen) {
         setInviteOpen(false);
         return true;
@@ -132,7 +147,7 @@ function CoDrive() {
       return false;
     });
     return () => sub.remove();
-  }, [inviteOpen, rotationOpen, connectionOpen, createOpen, expenseOpen, profileOpen, tab]);
+  }, [noteOpen, inviteOpen, rotationOpen, connectionOpen, createOpen, expenseOpen, profileOpen, tab]);
 
   const updateTrip = (id: string, recipe: (current: Trip) => Trip) => {
     setTrips((current) => current.map((item) => (item.id === id ? recipe(item) : item)));
@@ -155,15 +170,17 @@ function CoDrive() {
   const budgetValue = parseFloat(tripBudget);
   const createReady =
     tripName.trim().length > 0 &&
-    startDate.trim().length > 0 &&
-    endDate.trim().length > 0 &&
+    startDate.length > 0 &&
+    endDate.length > 0 &&
+    endDate >= startDate &&
     !Number.isNaN(budgetValue) &&
     budgetValue > 0 &&
     (editingId !== null || (startName.trim().length > 0 && endName.trim().length > 0));
   const amountValue = parseFloat(expenseAmount);
   const expenseReady =
+    expenseType !== null &&
+    activePayers.length > 0 &&
     expenseName.trim().length > 0 &&
-    expenseNotes.trim().length > 0 &&
     !Number.isNaN(amountValue) &&
     amountValue > 0;
 
@@ -187,13 +204,13 @@ function CoDrive() {
   const openEdit = (id: string) => {
     const current = trips.find((item) => item.id === id);
     if (!current) return;
-    const parts = current.dates.split(/\s+–\s+/);
+    const range = parseTripDates(current.dates);
     setEditingId(id);
     setTripName(current.title);
     setStartName(current.waypoints.find((stop) => stop.detail === 'Start')?.title ?? '');
     setEndName(current.waypoints.find((stop) => stop.detail === 'Destination')?.title ?? '');
-    setStartDate(parts[0] ?? '');
-    setEndDate(parts.length > 1 ? parts.slice(1).join(' – ') : '');
+    setStartDate(range.start);
+    setEndDate(range.end);
     setTripBudget(String(current.budget));
     setTripImage(current.image);
     setCreateOpen(true);
@@ -225,6 +242,7 @@ function CoDrive() {
           time: '9:00 AM',
           stop: 'Departure',
           pin: '#E26D5A',
+          status: 'selected',
         },
         ...waypoints,
       ];
@@ -243,6 +261,7 @@ function CoDrive() {
           time: '—',
           stop: 'Arrival',
           pin: '#5B7CFA',
+          status: 'selected',
         },
       ];
     }
@@ -254,7 +273,7 @@ function CoDrive() {
     const title = tripName.trim();
     const start = startName.trim();
     const end = endName.trim();
-    const dates = `${startDate.trim()} – ${endDate.trim()}`;
+    const dates = formatTripDates(startDate, endDate);
     const image = tripImage ?? IMG.road;
     const budget = budgetValue;
 
@@ -313,6 +332,7 @@ function CoDrive() {
           time: '9:00 AM',
           stop: 'Departure',
           pin: '#E26D5A',
+          status: 'selected',
         },
         {
           id: `${id}-end`,
@@ -325,6 +345,7 @@ function CoDrive() {
           time: '—',
           stop: 'Arrival',
           pin: '#5B7CFA',
+          status: 'selected',
         },
       ],
     };
@@ -336,9 +357,16 @@ function CoDrive() {
     setInviteOpen(true);
   };
 
+  const requestStop = () => {
+    if (!draftStop.trim() || !trip) return;
+    setStopNote('');
+    setNoteOpen(true);
+  };
+
   const addStop = () => {
     const title = draftStop.trim();
     if (!title || !trip) return;
+    const note = stopNote.trim();
     const tripId = trip.id;
     const localId = Date.now().toString();
     updateTrip(tripId, (current) => ({
@@ -349,6 +377,7 @@ function CoDrive() {
           id: localId,
           title,
           detail: 'Suggested stop',
+          note: note || undefined,
           proposedBy: 'You',
           likes: 1,
           liked: true,
@@ -356,10 +385,13 @@ function CoDrive() {
           time: '—',
           stop: 'New suggestion',
           pin: '#8B6CC4',
+          status: 'suggested',
         },
       ],
     }));
     setDraftStop('');
+    setStopNote('');
+    setNoteOpen(false);
   };
 
   const toggleLike = (id: string) => {
@@ -374,9 +406,10 @@ function CoDrive() {
 
   const handleLog = async () => {
     if (!expenseReady || !trip || logging) return;
+    if (expenseType === null) return;
     const notes = expenseNotes.trim();
-    const paidBy = notes.match(/paid by\s+([^·,\n]+)/i)?.[1]?.trim() || 'You';
-    const category = iconFor(expenseName);
+    const paidBy = orderPayers(activePayers, payers);
+    const category = expenseType;
     let expenseId = Date.now().toString();
 
     if (isServerTrip(trip.id)) {
@@ -384,7 +417,7 @@ function CoDrive() {
       setExpenseError(null);
       try {
         const saved = await logExpense(trip.id, {
-          paid_by_user: paidBy,
+          paid_by_user: paidBy.join(', '),
           amount: amountValue,
           category,
           description: notes,
@@ -404,13 +437,16 @@ function CoDrive() {
         {
           id: expenseId,
           title: expenseName.trim(),
-          details: notes,
+          paidBy,
+          notes,
           amount: amountValue,
-          icon: category,
+          type: category,
         },
         ...current.expenses,
       ],
     }));
+    setExpenseType(null);
+    setExpensePaidBy([]);
     setExpenseName('');
     setExpenseAmount('');
     setExpenseNotes('');
@@ -428,6 +464,7 @@ function CoDrive() {
       <View style={styles.phone}>
         <StatusBar style="dark" />
         <View style={[styles.column, { paddingTop: insets.top, backgroundColor: tab === 'drive' ? C.map : C.cream }]}>
+          {tab === 'home' ? <MapBackdrop /> : null}
           <View style={styles.fill}>
             {tab === 'home' ? (
               <HomeScreen
@@ -450,7 +487,7 @@ function CoDrive() {
                 trip={trip}
                 draft={draftStop}
                 onDraft={setDraftStop}
-                onAdd={addStop}
+                onAdd={requestStop}
                 onLike={toggleLike}
                 onInvite={() => setInviteOpen(true)}
               />
@@ -482,7 +519,10 @@ function CoDrive() {
             endDate={endDate}
             budget={tripBudget}
             image={tripImage}
-            onStartDate={setStartDate}
+            onStartDate={(value) => {
+              setStartDate(value);
+              if (endDate && endDate < value) setEndDate('');
+            }}
             onEndDate={setEndDate}
             onBudget={setTripBudget}
             onImage={setTripImage}
@@ -497,11 +537,16 @@ function CoDrive() {
         {expenseOpen && trip ? (
           <LogExpenseDialog
             tripTitle={trip.title}
+            type={expenseType}
             name={expenseName}
             amount={expenseAmount}
+            payers={payers}
+            paidBy={activePayers}
             notes={expenseNotes}
+            onType={setExpenseType}
             onName={setExpenseName}
             onAmount={setExpenseAmount}
+            onPayer={(name) => setExpensePaidBy(togglePayer(activePayers, name))}
             onNotes={setExpenseNotes}
             onLog={handleLog}
             onClose={() => {
@@ -538,6 +583,16 @@ function CoDrive() {
             onPhoto={setProfileUri}
             onClear={() => setProfileUri(null)}
             onClose={() => setProfileOpen(false)}
+          />
+        ) : null}
+
+        {noteOpen && trip ? (
+          <StopNoteDialog
+            stopTitle={draftStop.trim()}
+            note={stopNote}
+            onNote={setStopNote}
+            onConfirm={addStop}
+            onClose={() => setNoteOpen(false)}
           />
         ) : null}
 

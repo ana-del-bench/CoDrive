@@ -1,4 +1,4 @@
-import type { Crew, ExpenseIcon, Trip } from './types';
+import type { Crew, Trip } from './types';
 
 export const IMG = {
   beach: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=900&q=70',
@@ -50,6 +50,7 @@ export const TRIPS: Trip[] = [
         time: '10:05 AM',
         stop: '10 min stop',
         pin: '#E26D5A',
+        status: 'selected',
       },
       {
         id: 'haleiwa',
@@ -62,6 +63,7 @@ export const TRIPS: Trip[] = [
         time: '10:35 AM',
         stop: '25 min stop',
         pin: '#E2B045',
+        status: 'selected',
       },
       {
         id: 'sharks',
@@ -74,6 +76,7 @@ export const TRIPS: Trip[] = [
         time: '11:05 AM',
         stop: '5 min stop',
         pin: '#3AA99A',
+        status: 'suggested',
       },
       {
         id: 'sunset',
@@ -86,6 +89,7 @@ export const TRIPS: Trip[] = [
         time: '11:30 AM',
         stop: '10 min stop',
         pin: '#5B7CFA',
+        status: 'selected',
       },
       {
         id: 'turtle',
@@ -98,14 +102,15 @@ export const TRIPS: Trip[] = [
         time: '12:10 PM',
         stop: 'Arrival',
         pin: '#8B6CC4',
+        status: 'selected',
       },
     ],
     expenses: [
-      { id: 'shrimp', title: "Shrimp Plate at Giovanni's", details: 'Paid by Bo · Split 4 ways', amount: 38, icon: 'food' },
-      { id: 'snorkel', title: "Snorkel rental at Shark's Cove", details: 'Paid by Ava · Split 4 ways', amount: 25, icon: 'snorkel' },
-      { id: 'stay', title: 'Turtle Bay Resort stay', details: 'Paid by Cam · Split 4 ways', amount: 320, icon: 'stay' },
-      { id: 'ice', title: "Shave ice at Matsumoto's", details: 'Paid by Bo · Split 4 ways', amount: 18, icon: 'treat' },
-      { id: 'gas', title: 'Gas at Haleiwa Shell', details: 'Paid by Ava · Split 4 ways', amount: 42, icon: 'gas' },
+      { id: 'shrimp', title: "Shrimp Plate at Giovanni's", paidBy: ['Bo'], notes: 'Split 4 ways', amount: 38, type: 'food' },
+      { id: 'snorkel', title: "Snorkel rental at Shark's Cove", paidBy: ['Ava'], notes: 'Split 4 ways', amount: 25, type: 'recreation' },
+      { id: 'stay', title: 'Turtle Bay Resort stay', paidBy: ['Cam'], notes: 'Split 4 ways', amount: 320, type: 'housing' },
+      { id: 'ice', title: "Shave ice at Matsumoto's", paidBy: ['Bo'], notes: 'Split 4 ways', amount: 18, type: 'food' },
+      { id: 'gas', title: 'Gas at Haleiwa Shell', paidBy: ['Ava'], notes: 'Split 4 ways', amount: 42, type: 'gas' },
     ],
   },
   {
@@ -132,6 +137,7 @@ export const TRIPS: Trip[] = [
         time: '8:40 AM',
         stop: 'Departure',
         pin: '#E26D5A',
+        status: 'selected',
       },
       {
         id: 'sur',
@@ -144,6 +150,7 @@ export const TRIPS: Trip[] = [
         time: '12:15 PM',
         stop: '20 min stop',
         pin: '#3AA99A',
+        status: 'selected',
       },
       {
         id: 'monterey',
@@ -156,10 +163,11 @@ export const TRIPS: Trip[] = [
         time: '3:05 PM',
         stop: 'Arrival',
         pin: '#5B7CFA',
+        status: 'suggested',
       },
     ],
     expenses: [
-      { id: 'fuel', title: 'Fuel in Santa Barbara', details: 'Paid by Ava · Split 3 ways', amount: 64, icon: 'gas' },
+      { id: 'fuel', title: 'Fuel in Santa Barbara', paidBy: ['Ava'], notes: 'Split 3 ways', amount: 64, type: 'gas' },
     ],
   },
   {
@@ -186,6 +194,7 @@ export const TRIPS: Trip[] = [
         time: '9:15 AM',
         stop: '40 min stop',
         pin: '#3AA99A',
+        status: 'selected',
       },
       {
         id: 'volcano',
@@ -198,6 +207,7 @@ export const TRIPS: Trip[] = [
         time: '1:00 PM',
         stop: '30 min stop',
         pin: '#E26D5A',
+        status: 'vetoed',
       },
     ],
     expenses: [],
@@ -210,13 +220,4 @@ export function money(amount: number) {
 
 export function slug(title: string) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'trip';
-}
-
-export function iconFor(name: string): ExpenseIcon {
-  const n = name.toLowerCase();
-  if (n.includes('gas') || n.includes('fuel')) return 'gas';
-  if (n.includes('hotel') || n.includes('stay') || n.includes('resort')) return 'stay';
-  if (n.includes('snorkel') || n.includes('surf') || n.includes('ocean')) return 'snorkel';
-  if (n.includes('ice') || n.includes('dessert') || n.includes('shave')) return 'treat';
-  return 'food';
 }
