@@ -47,6 +47,51 @@ export type ApiExpense = {
   description: string;
 };
 
+export type AddressSuggestion = {
+  id: string;
+  /** Short text for a form field, like "Ala Moana Center, Honolulu". */
+  name: string;
+  line1: string;
+  line2: string;
+  /** Full formatted address. */
+  label: string;
+  latitude: number;
+  longitude: number;
+};
+
+export type Spot = { name: string; latitude: number; longitude: number };
+
+/** Asks the CoDrive API for address suggestions. The API holds the Geoapify key, not the app. */
+export function searchAddresses(text: string, near?: { latitude: number; longitude: number } | null) {
+  const where = near ? `&lat=${near.latitude}&lon=${near.longitude}` : '';
+  return request<{ results: AddressSuggestion[] }>(`/api/geo/autocomplete?text=${encodeURIComponent(text)}${where}`);
+}
+
+export type PlaceKind = 'food' | 'gas' | 'beach' | 'sights' | 'lodging';
+
+/** Named places of one kind near a point, like gas stations or beaches. */
+export function nearbyPlaces(kind: PlaceKind, near: { latitude: number; longitude: number }) {
+  return request<{ results: AddressSuggestion[] }>(
+    `/api/geo/places?category=${kind}&lat=${near.latitude}&lon=${near.longitude}`,
+  );
+}
+
+export type RoutePlan = {
+  distanceMeters: number;
+  timeSeconds: number;
+  legs: { distanceMeters: number; timeSeconds: number }[];
+  /** The road line as [latitude, longitude] pairs. */
+  path: [number, number][];
+};
+
+/** Driving route through the points, in order. */
+export function fetchRoute(points: { latitude: number; longitude: number }[]) {
+  return request<RoutePlan>('/api/geo/route', {
+    method: 'POST',
+    body: JSON.stringify({ points: points.map(({ latitude, longitude }) => ({ latitude, longitude })) }),
+  });
+}
+
 export function listTrips() {
   return request<ApiTrip[]>('/api/trips');
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createTrip, isServerTrip, listTrips, logExpense, type ApiTrip } from './src/api';
+import { createTrip, isServerTrip, listTrips, logExpense, type AddressSuggestion, type ApiTrip, type Spot } from './src/api';
 import { MapBackdrop } from './src/components/MapBackdrop';
 import { TabBar } from './src/components/TabBar';
 import { CREW, IMG, TRIPS } from './src/data';
@@ -20,7 +20,8 @@ import { ProfileDialog } from './src/screens/ProfileDialog';
 import { RotationDialog } from './src/screens/RotationDialog';
 import { StopNoteDialog } from './src/screens/StopNoteDialog';
 import { C } from './src/theme';
-import type { Crew, ExpenseType, Tab, Trip } from './src/types';
+import { castVote } from './src/votes';
+import type { Crew, ExpenseType, Tab, Trip, Waypoint } from './src/types';
 
 function tripFromApi(row: ApiTrip): Trip {
   const created = new Date(row.created_at);
@@ -40,9 +41,26 @@ function tripFromApi(row: ApiTrip): Trip {
     budget: Number(row.budget) > 0 ? Number(row.budget) : 500,
     duration: '—',
     leg: row.title,
-    progress: 0,
     rest: { place: 'Nearest safe pull-off', distance: '—', note: 'We’ll mark it once you’re moving' },
   };
+}
+
+/** A stop's name and location, if it has a location. */
+function spotOf(stop: Waypoint | undefined): Spot | null {
+  if (!stop || typeof stop.latitude !== 'number' || typeof stop.longitude !== 'number') return null;
+  return { name: stop.title, latitude: stop.latitude, longitude: stop.longitude };
+}
+
+/** The picked place, but only while the text still says what was picked. */
+function spotFor(text: string, place: Spot | null): Spot | null {
+  return place && place.name === text ? place : null;
+}
+
+/** Coordinates to spread onto a stop. A stop keeps its old location if the new text was never picked from a list. */
+function where(spot: Spot | null, previous?: Waypoint): { latitude?: number; longitude?: number } {
+  if (spot) return { latitude: spot.latitude, longitude: spot.longitude };
+  // The text changed without picking a place, so the old coordinates no longer describe it.
+  return previous ? { latitude: undefined, longitude: undefined } : {};
 }
 
 function CoDrive() {
@@ -55,7 +73,6 @@ function CoDrive() {
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [rotationOpen, setRotationOpen] = useState(false);
   const [connectionOpen, setConnectionOpen] = useState(false);
-  const [rotationSeen, setRotationSeen] = useState(false);
   const [rotationNote, setRotationNote] = useState<string | null>(null);
   const [draftStop, setDraftStop] = useState('');
   const [noteOpen, setNoteOpen] = useState(false);
@@ -63,6 +80,9 @@ function CoDrive() {
   const [tripName, setTripName] = useState('');
   const [startName, setStartName] = useState('');
   const [endName, setEndName] = useState('');
+  const [startPlace, setStartPlace] = useState<Spot | null>(null);
+  const [endPlace, setEndPlace] = useState<Spot | null>(null);
+  const [draftPlace, setDraftPlace] = useState<Spot | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [tripBudget, setTripBudget] = useState('');
@@ -101,13 +121,6 @@ function CoDrive() {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (tab === 'drive' && trip && !rotationSeen) {
-      setRotationOpen(true);
-      setRotationSeen(true);
-    }
-  }, [tab, rotationSeen, trip]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -188,6 +201,8 @@ function CoDrive() {
     setTripName('');
     setStartName('');
     setEndName('');
+    setStartPlace(null);
+    setEndPlace(null);
     setStartDate('');
     setEndDate('');
     setTripBudget('');
@@ -209,6 +224,8 @@ function CoDrive() {
     setTripName(current.title);
     setStartName(current.waypoints.find((stop) => stop.detail === 'Start')?.title ?? '');
     setEndName(current.waypoints.find((stop) => stop.detail === 'Destination')?.title ?? '');
+    setStartPlace(spotOf(current.waypoints.find((stop) => stop.detail === 'Start')));
+    setEndPlace(spotOf(current.waypoints.find((stop) => stop.detail === 'Destination')));
     setStartDate(range.start);
     setEndDate(range.end);
     setTripBudget(String(current.budget));
@@ -223,10 +240,10 @@ function CoDrive() {
     setCreating(false);
   };
 
-  const placeWaypoints = (current: Trip, start: string, end: string) => {
+  const placeWaypoints = (current: Trip, start: string, end: string, startSpot: Spot | null, endSpot: Spot | null) => {
     let waypoints = current.waypoints.map((stop) => {
-      if (stop.detail === 'Start' && start) return { ...stop, title: start };
-      if (stop.detail === 'Destination' && end) return { ...stop, title: end };
+      if (stop.detail === 'Start' && start) return { ...stop, title: start, ...where(startSpot, stop) };
+      if (stop.detail === 'Destination' && end) return { ...stop, title: end, ...where(endSpot, stop) };
       return stop;
     });
     if (start && !waypoints.some((stop) => stop.detail === 'Start')) {
@@ -237,12 +254,14 @@ function CoDrive() {
           detail: 'Start',
           proposedBy: 'You',
           likes: 1,
-          liked: true,
+          dislikes: 0,
+          vote: 'up',
           image: IMG.coast,
           time: '9:00 AM',
           stop: 'Departure',
           pin: '#E26D5A',
           status: 'selected',
+          ...where(startSpot),
         },
         ...waypoints,
       ];
@@ -256,12 +275,14 @@ function CoDrive() {
           detail: 'Destination',
           proposedBy: 'You',
           likes: 1,
-          liked: true,
+          dislikes: 0,
+          vote: 'up',
           image: IMG.hills,
           time: '—',
           stop: 'Arrival',
           pin: '#5B7CFA',
           status: 'selected',
+          ...where(endSpot),
         },
       ];
     }
@@ -276,6 +297,8 @@ function CoDrive() {
     const dates = formatTripDates(startDate, endDate);
     const image = tripImage ?? IMG.road;
     const budget = budgetValue;
+    const startSpot = spotFor(start, startPlace);
+    const endSpot = spotFor(end, endPlace);
 
     if (editingId) {
       updateTrip(editingId, (current) => ({
@@ -286,7 +309,7 @@ function CoDrive() {
         budget,
         image,
         leg: start && end ? `${start} to ${end}` : current.leg,
-        waypoints: placeWaypoints(current, start, end),
+        waypoints: placeWaypoints(current, start, end, startSpot, endSpot),
       }));
       clearTripForm();
       setCreateOpen(false);
@@ -317,7 +340,6 @@ function CoDrive() {
       budget,
       duration: '—',
       leg: `${start} to ${end}`,
-      progress: 0.08,
       rest: { place: 'Nearest safe pull-off', distance: '—', note: 'We’ll mark it once you’re moving' },
       expenses: [],
       waypoints: [
@@ -327,12 +349,14 @@ function CoDrive() {
           detail: 'Start',
           proposedBy: 'You',
           likes: 1,
-          liked: true,
+          dislikes: 0,
+          vote: 'up',
           image: IMG.coast,
           time: '9:00 AM',
           stop: 'Departure',
           pin: '#E26D5A',
           status: 'selected',
+          ...where(startSpot),
         },
         {
           id: `${id}-end`,
@@ -340,12 +364,14 @@ function CoDrive() {
           detail: 'Destination',
           proposedBy: 'You',
           likes: 1,
-          liked: true,
+          dislikes: 0,
+          vote: 'up',
           image: IMG.hills,
           time: '—',
           stop: 'Arrival',
           pin: '#5B7CFA',
           status: 'selected',
+          ...where(endSpot),
         },
       ],
     };
@@ -363,10 +389,18 @@ function CoDrive() {
     setNoteOpen(true);
   };
 
+  const pickPlace = (place: AddressSuggestion) => {
+    setDraftStop(place.name);
+    setDraftPlace({ name: place.name, latitude: place.latitude, longitude: place.longitude });
+    setStopNote('');
+    setNoteOpen(true);
+  };
+
   const addStop = () => {
     const title = draftStop.trim();
     if (!title || !trip) return;
     const note = stopNote.trim();
+    const spot = spotFor(title, draftPlace);
     const tripId = trip.id;
     const localId = Date.now().toString();
     updateTrip(tripId, (current) => ({
@@ -379,28 +413,29 @@ function CoDrive() {
           detail: 'Suggested stop',
           note: note || undefined,
           proposedBy: 'You',
-          likes: 1,
-          liked: true,
+          likes: 0,
+          dislikes: 0,
+          vote: null,
           image: IMG.lake,
           time: '—',
           stop: 'New suggestion',
           pin: '#8B6CC4',
           status: 'suggested',
+          ...where(spot),
         },
       ],
     }));
     setDraftStop('');
+    setDraftPlace(null);
     setStopNote('');
     setNoteOpen(false);
   };
 
-  const toggleLike = (id: string) => {
+  const vote = (id: string, direction: 'up' | 'down') => {
     if (!trip) return;
     updateTrip(trip.id, (current) => ({
       ...current,
-      waypoints: current.waypoints.map((stop) =>
-        stop.id === id ? { ...stop, liked: !stop.liked, likes: stop.likes + (stop.liked ? -1 : 1) } : stop,
-      ),
+      waypoints: current.waypoints.map((stop) => (stop.id === id ? castVote(stop, direction) : stop)),
     }));
   };
 
@@ -488,7 +523,8 @@ function CoDrive() {
                 draft={draftStop}
                 onDraft={setDraftStop}
                 onAdd={requestStop}
-                onLike={toggleLike}
+                onPickPlace={pickPlace}
+                onVote={vote}
                 onInvite={() => setInviteOpen(true)}
               />
             ) : null}
@@ -515,6 +551,8 @@ function CoDrive() {
             onName={setTripName}
             onStart={setStartName}
             onEnd={setEndName}
+            onStartPick={setStartPlace}
+            onEndPick={setEndPlace}
             startDate={startDate}
             endDate={endDate}
             budget={tripBudget}

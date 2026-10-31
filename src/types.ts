@@ -10,6 +10,9 @@ export interface Crew {
 
 export type WaypointStatus = 'suggested' | 'selected' | 'vetoed';
 
+/** Your vote on a stop: thumbs up selects it, thumbs down vetoes it, no vote leaves it suggested. */
+export type Vote = 'up' | 'down' | null;
+
 export interface Waypoint {
   id: string;
   title: string;
@@ -18,12 +21,16 @@ export interface Waypoint {
   note?: string;
   proposedBy: string;
   likes: number;
-  liked: boolean;
+  dislikes: number;
+  vote: Vote;
   image: string;
   time: string;
   stop: string;
   pin: string;
   status: WaypointStatus;
+  /** Where the stop is. Stops without a location are left off the map and the route. */
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface Expense {
@@ -54,6 +61,5 @@ export interface Trip {
   budget: number;
   duration: string;
   leg: string;
-  progress: number;
   rest: RestStop;
 }

@@ -4,6 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { PrimaryButton, QuietButton } from '../components/Buttons';
 import { Dialog, dialogStyles } from '../components/Dialog';
+import type { Spot } from '../api';
+import { AddressField } from '../components/AddressField';
 import { DateField } from '../components/DateField';
 import { Field } from '../components/Field';
 import { C } from '../theme';
@@ -20,6 +22,8 @@ export function CreateTripDialog({
   onName,
   onStart,
   onEnd,
+  onStartPick,
+  onEndPick,
   onStartDate,
   onEndDate,
   onBudget,
@@ -41,6 +45,8 @@ export function CreateTripDialog({
   onName: (value: string) => void;
   onStart: (value: string) => void;
   onEnd: (value: string) => void;
+  onStartPick: (place: Spot) => void;
+  onEndPick: (place: Spot) => void;
   onStartDate: (value: string) => void;
   onEndDate: (value: string) => void;
   onBudget: (value: string) => void;
@@ -85,8 +91,8 @@ export function CreateTripDialog({
             : 'Name the road, set a budget, then bring your crew along.'}
         </Text>
         <Field label="Trip name" value={name} onChangeText={onName} placeholder="North Shore Getaway" />
-        <Field label="Start" value={start} onChangeText={onStart} placeholder="Ala Moana" />
-        <Field label="End" value={end} onChangeText={onEnd} placeholder="Turtle Bay" />
+        <AddressField label="Start" value={start} onChangeText={onStart} placeholder="Ala Moana" onPick={onStartPick} />
+        <AddressField label="End" value={end} onChangeText={onEnd} placeholder="Turtle Bay" onPick={onEndPick} />
         <DateField label="Start date" value={startDate} onChange={onStartDate} placeholder="Select a date" />
         <DateField label="End date" value={endDate} onChange={onEndDate} placeholder="Select a date" min={startDate} />
         <Field label="Budget" value={budget} onChangeText={onBudget} placeholder="500" numeric />

@@ -24,6 +24,10 @@ npm start
 
 Sample trips load from `src/data.ts`. Starting a new trip saves it through the API and keeps the returned id and share code for later stops and expenses.
 
+## Drive screen
+
+The route only includes stops that are selected (thumbs up) and have a location, ordered to be as short as it can be. The first stop stays first, and a Destination or Arrival stop stays last. The progress bar follows the phone's real location along that route, so install the location package once with `npx expo install expo-location` and allow location when asked. On the Android emulator, set a location in the emulator's extended controls (`...` > Location), or progress shows "Not on the route yet".
+
 ## API
 
 The API is a Node.js service in `server/`. PostgreSQL stores trips, and PostGIS keeps each stop as a geography point.
@@ -38,6 +42,8 @@ npm install
 npm start
 ```
 
+For address search, put your Geoapify key in `server/.env` as `GEOAPIFY_API_KEY=...` and restart the API. The key stays on the server and the app never sees it. Without it everything else works and the address fields are plain text.
+
 The API listens on [http://localhost:3000](http://localhost:3000). Postgres is published on port 5433 so it does not collide with a Postgres already running on 5432.
 
 Tables:
@@ -51,6 +57,11 @@ Endpoints:
 - `POST /api/trips` — body `{ "title": "North Shore Getaway", "budget": 500 }`. `share_code` is optional. `budget` must be greater than 0.
 - `POST /api/trips/:id/waypoints` — body `{ "name": "Pipeline Beach", "latitude": 21.665, "longitude": -158.053 }`. `sequence_order` is optional and defaults to the next stop.
 - `GET /api/trips/:id` — the trip, its stops in order, and its expenses.
+- `GET /api/geo/autocomplete?text=Ala Moana` — up to 5 address suggestions with coordinates, looked up through Geoapify. Needs `GEOAPIFY_API_KEY`. `text` must be 3 to 200 characters, and each caller is limited to 60 searches a minute.
+- `GET /api/geo/places?category=food|gas|beach|sights|lodging&lat=...&lon=...` — named places of that kind within about 9 miles of a point.
+- `POST /api/geo/route` — body `{ "points": [{ "latitude": 21.66, "longitude": -158.05 }, ...] }` with 2 to 12 points. Returns the driving distance, time, each leg, and the road line.
+
+All three `/api/geo` endpoints use the Geoapify key in `server/.env`, and each has its own per-caller rate limit.
 - `POST /api/trips/:id/expenses` — body `{ "paid_by_user": "Ava", "amount": 42, "category": "gas", "description": "Split 4 ways" }`.
 
 ## Where things live

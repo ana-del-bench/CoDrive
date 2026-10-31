@@ -3,6 +3,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { C, layout } from '../theme';
 import type { Trip } from '../types';
 import { TripMap } from '../components/TripMap';
+import { drivingStops, duration, miles, routedStops, schedule, shortLabel } from '../route';
+import { legAt, OFF_ROUTE_METERS, progressAlong } from '../progress';
+import { useCarPosition } from '../useCarPosition';
+import { useRoute } from '../useRoute';
 
 export function DriveScreen({
   trip,
@@ -18,11 +22,57 @@ export function DriveScreen({
   onConnection: () => void;
 }) {
   const driver = trip.crew[0];
+  const stops = routedStops(trip);
+  const { plan, failed, loading } = useRoute(stops);
+  const itinerary = drivingStops(trip);
+  const { position, status: locationStatus } = useCarPosition(plan !== null);
+
+  // How far along the route the car is, from its real location.
+  const along = plan && position ? progressAlong(plan.path, position) : null;
+  const onRoute = along !== null && along.offRouteMeters <= OFF_ROUTE_METERS;
+  const fraction = onRoute ? along.fraction : 0;
+  const legIndex = plan && onRoute ? legAt(plan.legs, fraction * plan.distanceMeters) : 0;
+
+  const progressText = !plan
+    ? stops.length >= 2
+      ? failed
+        ? 'Route unavailable'
+        : 'Finding the route…'
+      : 'Select 2 stops with locations to track progress'
+    : locationStatus === 'denied'
+      ? 'Allow location to track progress'
+      : locationStatus === 'unavailable'
+        ? 'Location unavailable'
+        : !position
+          ? 'Finding your location…'
+          : !onRoute
+            ? 'Not on the route yet'
+            : `${Math.round(fraction * 100)}% Complete`;
+
+  const legStart = stops[legIndex];
+  const legEnd = stops[legIndex + 1];
+  const legLine =
+    legStart && legEnd
+      ? `Current leg: ${legStart.title} to ${legEnd.title}${plan ? ` · ${miles(plan.legs[legIndex]?.distanceMeters ?? plan.distanceMeters)}` : ''}${
+          loading ? ' · finding the route…' : failed ? ' · route unavailable, showing a straight line' : ''
+        }`
+      : itinerary.length === 0
+        ? 'No stops selected yet. Give a stop a thumbs up on the Plan tab.'
+        : trip.leg;
+  const timings = plan ? schedule(stops, plan.legs) : null;
 
   return (
     <View style={layout.fill}>
       <View style={[styles.mapWrap, fullMap && layout.fill]}>
-        <TripMap />
+        <TripMap
+          stops={stops.map((stop) => ({
+            latitude: stop.latitude,
+            longitude: stop.longitude,
+            color: stop.pin,
+            label: shortLabel(stop.title),
+          }))}
+          path={plan?.path}
+        />
         <View style={styles.driverPill}>
           <View style={[styles.mini, { backgroundColor: driver?.color ?? C.teal }]} />
           <Text style={styles.driverText}>{driver?.name ?? 'Crew'} driving</Text>
@@ -45,11 +95,11 @@ export function DriveScreen({
         {!fullMap ? (
           <View style={styles.routing}>
             <Text style={styles.routingTitle}>Routing {trip.routeName}</Text>
-            <Text style={styles.routingLeg}>{trip.leg}</Text>
+            <Text style={styles.routingLeg}>{legLine}</Text>
             <View style={styles.track}>
-              <View style={[styles.fill, { width: `${Math.round(trip.progress * 100)}%` }]} />
+              <View style={[styles.fill, { width: `${Math.round(fraction * 100)}%` }]} />
             </View>
-            <Text style={styles.pct}>{Math.round(trip.progress * 100)}% Complete</Text>
+            <Text style={styles.pct}>{progressText}</Text>
           </View>
         ) : null}
       </View>
@@ -59,23 +109,28 @@ export function DriveScreen({
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>Today's Itinerary</Text>
           <ScrollView style={layout.fill} contentContainerStyle={styles.itinerary} showsVerticalScrollIndicator={false}>
-            {trip.waypoints.map((stop, index) => (
+            {itinerary.map((stop, index) => (
               <View key={stop.id} style={styles.row}>
                 <View style={styles.rail}>
                   <View style={[styles.dot, { backgroundColor: stop.pin }]} />
-                  {index < trip.waypoints.length - 1 ? <View style={styles.line} /> : null}
+                  {index < itinerary.length - 1 ? <View style={styles.line} /> : null}
                 </View>
                 <View style={styles.copy}>
                   <Text style={styles.stopTitle}>{stop.title}</Text>
-                  <Text style={styles.stopMeta}>{stop.stop}</Text>
+                  <Text style={styles.stopMeta}>
+                    {stop.stop}
+                    {timings?.get(stop.id)?.legMeters ? ` · ${miles(timings.get(stop.id)?.legMeters ?? 0)} from the last stop` : ''}
+                  </Text>
                 </View>
-                <Text style={styles.time}>{stop.time}</Text>
+                <Text style={styles.time}>{timings?.get(stop.id)?.time ?? stop.time}</Text>
               </View>
             ))}
           </ScrollView>
           <View style={styles.eta}>
-            <Text style={styles.etaValue}>{trip.duration}</Text>
-            <Text style={styles.etaSub}>Live with your crew · weather along the route</Text>
+            <Text style={styles.etaValue}>{plan ? duration(plan.timeSeconds) : trip.duration}</Text>
+            <Text style={styles.etaSub}>
+              {plan ? `${miles(plan.distanceMeters)} · ` : ''}Live with your crew · weather along the route
+            </Text>
           </View>
         </View>
       ) : null}

@@ -1,8 +1,11 @@
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C, cardShadow, layout } from '../theme';
 import type { Trip } from '../types';
+import type { AddressSuggestion } from '../api';
+import { searchAnchor } from '../route';
 import { StatusBadge } from '../components/StatusBadge';
+import { StopSearch } from '../components/StopSearch';
 import { TripHeader } from '../components/TripHeader';
 
 export function PlanScreen({
@@ -10,14 +13,16 @@ export function PlanScreen({
   draft,
   onDraft,
   onAdd,
-  onLike,
+  onPickPlace,
+  onVote,
   onInvite,
 }: {
   trip: Trip;
   draft: string;
   onDraft: (value: string) => void;
   onAdd: () => void;
-  onLike: (id: string) => void;
+  onPickPlace: (place: AddressSuggestion) => void;
+  onVote: (id: string, direction: 'up' | 'down') => void;
   onInvite: () => void;
 }) {
   return (
@@ -34,27 +39,45 @@ export function PlanScreen({
               <Text style={styles.meta}>
                 {stop.note || stop.detail} · Proposed by {stop.proposedBy}
               </Text>
-              <TouchableOpacity style={styles.likeRow} onPress={() => onLike(stop.id)} activeOpacity={0.7}>
-                <Ionicons
-                  name={stop.liked ? 'heart' : 'heart-outline'}
-                  size={18}
-                  color={stop.liked ? '#E26D5A' : C.muted}
-                />
-                <Text style={styles.likeCount}>{stop.likes}</Text>
-              </TouchableOpacity>
+              <View style={styles.voteRow}>
+                <TouchableOpacity
+                  style={styles.vote}
+                  onPress={() => onVote(stop.id, 'up')}
+                  activeOpacity={0.7}
+                  accessibilityLabel={`Thumbs up ${stop.title}`}
+                >
+                  <Ionicons
+                    name={stop.vote === 'up' ? 'thumbs-up' : 'thumbs-up-outline'}
+                    size={20}
+                    color={stop.vote === 'up' ? '#228B50' : C.muted}
+                  />
+                  <Text style={styles.voteCount}>{stop.likes}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.vote}
+                  onPress={() => onVote(stop.id, 'down')}
+                  activeOpacity={0.7}
+                  accessibilityLabel={`Thumbs down ${stop.title}`}
+                >
+                  <Ionicons
+                    name={stop.vote === 'down' ? 'thumbs-down' : 'thumbs-down-outline'}
+                    size={20}
+                    color={stop.vote === 'down' ? '#CD3C3C' : C.muted}
+                  />
+                  <Text style={styles.voteCount}>{stop.dislikes}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         ))}
       </ScrollView>
       <View style={styles.composer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Suggest a new waypoint..."
-          placeholderTextColor={C.faint}
+        <StopSearch
           value={draft}
           onChangeText={onDraft}
-          onSubmitEditing={onAdd}
-          returnKeyType="done"
+          onSubmit={onAdd}
+          onPick={onPickPlace}
+          anchor={searchAnchor(trip)}
         />
       </View>
     </View>
@@ -89,33 +112,29 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: C.muted,
   },
-  likeRow: {
+  voteRow: {
     marginTop: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    alignSelf: 'flex-start',
+    gap: 18,
   },
-  likeCount: {
+  vote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 32,
+  },
+  voteCount: {
     fontSize: 13,
     fontWeight: '600',
     color: C.muted,
   },
   composer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: C.cream,
-  },
-  input: {
-    flex: 1,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: C.white,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    color: C.ink,
   },
 });

@@ -1,6 +1,15 @@
 import { randomBytes } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { migrate, pool } from './db.js';
+import {
+  autocompleteAddress,
+  createRateLimiter,
+  findPlaces,
+  GeoError,
+  isPlaceCategory,
+  planRoute,
+  type RoutePoint,
+} from './geo.js';
 
 const app = express();
 app.use(express.json());
@@ -220,6 +229,110 @@ app.post('/api/trips/:id/expenses', wrap(async (req, res) => {
     [tripId, paidByUser, amount, category, description],
   );
   res.status(201).json(expenseRow(inserted.rows[0]));
+}));
+
+const addressSearchLimited = createRateLimiter(60, 60_000);
+const placesLimited = createRateLimiter(30, 60_000);
+const routeLimited = createRateLimiter(20, 60_000);
+
+const GEO_NOT_SET_UP = 'Maps are not set up. Add GEOAPIFY_API_KEY to server/.env and restart the server.';
+
+function coordinate(latitude: unknown, longitude: unknown): RoutePoint | null {
+  const lat = number(latitude);
+  const lon = number(longitude);
+  if (lat === null || lon === null || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  return { latitude: lat, longitude: lon };
+}
+
+app.get('/api/geo/autocomplete', wrap(async (req, res) => {
+  const query = text(req.query.text);
+  if (!query || query.length < 3) {
+    res.status(400).json({ error: 'text must be at least 3 characters' });
+    return;
+  }
+  if (query.length > 200) {
+    res.status(400).json({ error: 'text is too long' });
+    return;
+  }
+
+  const apiKey = process.env.GEOAPIFY_API_KEY?.trim();
+  if (!apiKey) {
+    res.status(503).json({ error: 'Address search is not set up. Add GEOAPIFY_API_KEY to server/.env and restart the server.' });
+    return;
+  }
+  if (addressSearchLimited(req.ip ?? 'unknown')) {
+    res.status(429).json({ error: 'Too many address searches. Try again in a minute.' });
+    return;
+  }
+
+  // Optional: rank results closer to a known point first.
+  const near = req.query.lat !== undefined ? coordinate(req.query.lat, req.query.lon) : null;
+
+  try {
+    res.json({ results: await autocompleteAddress(query, apiKey, near ? { near } : {}) });
+  } catch (error) {
+    // Log the reason only. Never log the request URL, because it contains the key.
+    console.error('Address search failed:', error instanceof GeoError ? error.message : 'unexpected error');
+    res.status(502).json({ error: 'Address search is unavailable right now.' });
+  }
+}));
+
+app.get('/api/geo/places', wrap(async (req, res) => {
+  const category = text(req.query.category) ?? '';
+  const near = coordinate(req.query.lat, req.query.lon);
+  if (!isPlaceCategory(category) || !near) {
+    res.status(400).json({ error: 'category and a valid lat and lon are required' });
+    return;
+  }
+
+  const apiKey = process.env.GEOAPIFY_API_KEY?.trim();
+  if (!apiKey) {
+    res.status(503).json({ error: GEO_NOT_SET_UP });
+    return;
+  }
+  if (placesLimited(req.ip ?? 'unknown')) {
+    res.status(429).json({ error: 'Too many searches. Try again in a minute.' });
+    return;
+  }
+
+  try {
+    res.json({ results: await findPlaces(category, near, apiKey) });
+  } catch (error) {
+    console.error('Nearby search failed:', error instanceof GeoError ? error.message : 'unexpected error');
+    res.status(502).json({ error: 'Nearby search is unavailable right now.' });
+  }
+}));
+
+app.post('/api/geo/route', wrap(async (req, res) => {
+  const raw: unknown = req.body?.points;
+  if (!Array.isArray(raw) || raw.length < 2 || raw.length > 12) {
+    res.status(400).json({ error: 'points must list between 2 and 12 places' });
+    return;
+  }
+  const points = raw.map((item: { latitude?: unknown; longitude?: unknown } | null) =>
+    coordinate(item?.latitude, item?.longitude),
+  );
+  if (points.some((point) => point === null)) {
+    res.status(400).json({ error: 'every point needs a valid latitude and longitude' });
+    return;
+  }
+
+  const apiKey = process.env.GEOAPIFY_API_KEY?.trim();
+  if (!apiKey) {
+    res.status(503).json({ error: GEO_NOT_SET_UP });
+    return;
+  }
+  if (routeLimited(req.ip ?? 'unknown')) {
+    res.status(429).json({ error: 'Too many route requests. Try again in a minute.' });
+    return;
+  }
+
+  try {
+    res.json(await planRoute(points as RoutePoint[], apiKey));
+  } catch (error) {
+    console.error('Route failed:', error instanceof GeoError ? error.message : 'unexpected error');
+    res.status(502).json({ error: 'Routing is unavailable right now.' });
+  }
 }));
 
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
