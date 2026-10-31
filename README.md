@@ -16,10 +16,11 @@ npm start
 
 ## What you can do
 
-- **Home.** Start a trip with a name, start, end, dates, a budget, and an optional picture. The budget is what Split uses for that trip. Open an expedition, tap the pencil to edit it, or tap the X to delete it. The profile picture starts as an anonymous icon; tap it to choose a photo or switch back.
-- **Invite.** After you create a trip, share a link or QR code, then continue to Plan.
+- **Home.** Start a trip with just a name. Open an expedition, tap the pencil to open its Trip tab, or tap the X to delete it. The profile picture starts as an anonymous icon; tap it to choose a photo or switch back.
+- **Invite.** After you create a trip, share a link or QR code, then continue to the Trip tab.
+- **Trip.** Set the start and end, dates, budget and picture, and choose which crew members can drive and for how long (1 to 12 hours each). Everything except the name is optional. No route is drawn until both Start and End are filled in. The budget is what Split uses for that trip.
 - **Plan.** Review proposed stops, like one, or suggest a new waypoint.
-- **Drive.** Follow the route and today’s itinerary. The first visit opens a driver-rotation reminder. The bluetooth control opens the connection-lost notice.
+- **Drive.** Follow the route and today’s itinerary. With two or more drivers set on the Trip tab, the route is split into one colour per driver, each stretch as long as that driver can drive; a change of colour is a change of driver. A change within 5 miles of a stop moves to that stop. The steering-wheel control opens the driver-rotation reminder, using the first driver set on the Trip tab. The map pans with one finger and zooms with a pinch or the + and - buttons, and the target button jumps to your location (or back to the whole route if there is none). The bluetooth control opens the connection-lost notice.
 - **Split.** See the shared budget and log an expense, including notes for who paid and whether it was split.
 
 Sample trips load from `src/data.ts`. Starting a new trip saves it through the API and keeps the returned id and share code for later stops and expenses.
@@ -54,7 +55,7 @@ Tables:
 
 Endpoints:
 
-- `POST /api/trips` — body `{ "title": "North Shore Getaway", "budget": 500 }`. `share_code` is optional. `budget` must be greater than 0.
+- `POST /api/trips` — body `{ "title": "North Shore Getaway", "budget": 500 }`. `share_code` and `budget` are optional. If given, `budget` must be greater than 0.
 - `POST /api/trips/:id/waypoints` — body `{ "name": "Pipeline Beach", "latitude": 21.665, "longitude": -158.053 }`. `sequence_order` is optional and defaults to the next stop.
 - `GET /api/trips/:id` — the trip, its stops in order, and its expenses.
 - `GET /api/geo/autocomplete?text=Ala Moana` — up to 5 address suggestions with coordinates, looked up through Geoapify. Needs `GEOAPIFY_API_KEY`. `text` must be 3 to 200 characters, and each caller is limited to 60 searches a minute.

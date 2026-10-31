@@ -36,8 +36,9 @@ app.post('/api/trips', wrap(async (req, res) => {
     return;
   }
 
-  const budget = number(req.body?.budget);
-  if (budget === null || budget <= 0) {
+  // The budget is optional. If it is given, it must be above 0.
+  const budget = req.body?.budget === undefined || req.body?.budget === null ? null : number(req.body.budget);
+  if (req.body?.budget !== undefined && req.body?.budget !== null && (budget === null || budget <= 0)) {
     res.status(400).json({ error: 'budget must be greater than 0' });
     return;
   }
@@ -398,7 +399,7 @@ function tripRow(row: {
   id: string;
   title: string;
   share_code: string;
-  budget: number | string;
+  budget: number | string | null;
   created_at: Date | string;
 }) {
   return {

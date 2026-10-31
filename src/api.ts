@@ -25,7 +25,7 @@ export type ApiTrip = {
   id: string;
   title: string;
   share_code: string;
-  budget: number;
+  budget: number | null;
   created_at: string;
 };
 
@@ -96,10 +96,10 @@ export function listTrips() {
   return request<ApiTrip[]>('/api/trips');
 }
 
-export function createTrip(title: string, budget: number) {
+export function createTrip(title: string, budget?: number) {
   return request<ApiTrip>('/api/trips', {
     method: 'POST',
-    body: JSON.stringify({ title, budget }),
+    body: JSON.stringify(budget === undefined ? { title } : { title, budget }),
   });
 }
 

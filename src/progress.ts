@@ -10,6 +10,9 @@ export type Progress = {
   fraction: number;
   /** How far the car is from the nearest point on the route. */
   offRouteMeters: number;
+  /** Metres along the drawn line to the nearest point, and the line's whole length. */
+  alongMeters: number;
+  totalMeters: number;
 };
 
 /**
@@ -43,7 +46,12 @@ export function progressAlong(path: [number, number][], car: Point): Progress | 
     total += length;
   }
   if (total === 0) return null;
-  return { fraction: Math.max(0, Math.min(1, best.along / total)), offRouteMeters: best.distance };
+  return {
+    fraction: Math.max(0, Math.min(1, best.along / total)),
+    offRouteMeters: best.distance,
+    alongMeters: Math.min(total, best.along),
+    totalMeters: total,
+  };
 }
 
 /** Which leg of the route the car is on, counting from 0. */

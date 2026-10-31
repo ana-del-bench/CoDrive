@@ -7,6 +7,7 @@ import { searchAnchor } from '../route';
 import { StatusBadge } from '../components/StatusBadge';
 import { StopSearch } from '../components/StopSearch';
 import { TripHeader } from '../components/TripHeader';
+import { VoteButton } from '../components/VoteButton';
 
 export function PlanScreen({
   trip,
@@ -40,32 +41,20 @@ export function PlanScreen({
                 {stop.note || stop.detail} · Proposed by {stop.proposedBy}
               </Text>
               <View style={styles.voteRow}>
-                <TouchableOpacity
-                  style={styles.vote}
+                <VoteButton
+                  kind="up"
+                  active={stop.vote === 'up'}
+                  count={stop.likes}
                   onPress={() => onVote(stop.id, 'up')}
-                  activeOpacity={0.7}
-                  accessibilityLabel={`Thumbs up ${stop.title}`}
-                >
-                  <Ionicons
-                    name={stop.vote === 'up' ? 'thumbs-up' : 'thumbs-up-outline'}
-                    size={20}
-                    color={stop.vote === 'up' ? '#228B50' : C.muted}
-                  />
-                  <Text style={styles.voteCount}>{stop.likes}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.vote}
+                  label={`Thumbs up ${stop.title}`}
+                />
+                <VoteButton
+                  kind="down"
+                  active={stop.vote === 'down'}
+                  count={stop.dislikes}
                   onPress={() => onVote(stop.id, 'down')}
-                  activeOpacity={0.7}
-                  accessibilityLabel={`Thumbs down ${stop.title}`}
-                >
-                  <Ionicons
-                    name={stop.vote === 'down' ? 'thumbs-down' : 'thumbs-down-outline'}
-                    size={20}
-                    color={stop.vote === 'down' ? '#CD3C3C' : C.muted}
-                  />
-                  <Text style={styles.voteCount}>{stop.dislikes}</Text>
-                </TouchableOpacity>
+                  label={`Thumbs down ${stop.title}`}
+                />
               </View>
             </View>
           </View>
@@ -116,18 +105,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 18,
-  },
-  vote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 32,
-  },
-  voteCount: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: C.muted,
+    gap: 10,
   },
   composer: {
     flexDirection: 'row',

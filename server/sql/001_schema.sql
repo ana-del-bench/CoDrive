@@ -8,7 +8,11 @@ CREATE TABLE IF NOT EXISTS trips (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-ALTER TABLE trips ADD COLUMN IF NOT EXISTS budget NUMERIC(12, 2) NOT NULL DEFAULT 500 CHECK (budget > 0);
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS budget NUMERIC(12, 2) CHECK (budget > 0);
+
+-- A budget is optional: a trip can be created with just a title.
+ALTER TABLE trips ALTER COLUMN budget DROP NOT NULL;
+ALTER TABLE trips ALTER COLUMN budget DROP DEFAULT;
 
 CREATE TABLE IF NOT EXISTS waypoints (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

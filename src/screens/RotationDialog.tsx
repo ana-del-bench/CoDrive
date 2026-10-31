@@ -8,12 +8,15 @@ import { InfoCard } from '../components/InfoCard';
 
 export function RotationDialog({
   driverLine,
+  limit,
   rest,
   onClose,
   onAcknowledge,
   onRemind,
 }: {
   driverLine: string;
+  /** The driver's limit, like "4 hr". Falls back to a sample when no drivers are set up. */
+  limit?: string;
   rest: RestStop;
   onClose: () => void;
   onAcknowledge: () => void;
@@ -29,7 +32,7 @@ export function RotationDialog({
       <Text style={styles.title}>Driver Rotation Due</Text>
       <Text style={styles.body}>
         {driverLine}
-        <Text style={styles.strong}>2.5{'\u00A0'}hours</Text> without rest.
+        <Text style={styles.strong}>{(limit ?? '2.5 hours').replace(' ', '\u00A0')}</Text> without rest.
       </Text>
       <Text style={styles.hint}>For safety, please prepare to safely pull over and rotate drivers.</Text>
       <InfoCard kicker="NEXT REST STOP" title={rest.place} note={rest.note} trailing={rest.distance} />

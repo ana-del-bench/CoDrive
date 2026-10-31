@@ -11,6 +11,7 @@ export function Field({
   multiline,
   maxLength,
   onSubmitEditing,
+  autoFocus,
 }: {
   label: string;
   value: string;
@@ -21,6 +22,7 @@ export function Field({
   multiline?: boolean;
   maxLength?: number;
   onSubmitEditing?: () => void;
+  autoFocus?: boolean;
 }) {
   return (
     <View style={styles.wrap}>
@@ -35,6 +37,7 @@ export function Field({
         multiline={multiline}
         maxLength={maxLength}
         onSubmitEditing={onSubmitEditing}
+        autoFocus={autoFocus}
         returnKeyType={onSubmitEditing ? 'done' : undefined}
         textAlignVertical={multiline ? 'top' : 'center'}
         style={[styles.input, multiline && styles.notes]}

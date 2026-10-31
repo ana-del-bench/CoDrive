@@ -9,7 +9,17 @@ import { ExpenseGlyph } from '../components/ExpenseGlyph';
 import { Ring } from '../components/Ring';
 import { TripHeader } from '../components/TripHeader';
 
-export function CostsScreen({ trip, onLog }: { trip: Trip; onLog: () => void }) {
+export function CostsScreen({
+  trip,
+  onLog,
+  onSetBudget,
+}: {
+  trip: Trip;
+  onLog: () => void;
+  /** Opens the Trip tab at the Budget field. */
+  onSetBudget: () => void;
+}) {
+  const hasBudget = trip.budget > 0;
   const spent = trip.expenses.reduce((sum, item) => sum + item.amount, 0);
   const remaining = Math.max(0, trip.budget - spent);
   const progress = trip.budget > 0 ? spent / trip.budget : 0;
@@ -18,15 +28,27 @@ export function CostsScreen({ trip, onLog }: { trip: Trip; onLog: () => void }) 
     <View style={layout.fill}>
       <ScrollView style={layout.fill} contentContainerStyle={layout.scroll} showsVerticalScrollIndicator={false}>
         <TripHeader trip={trip} />
-        <View style={styles.budget}>
-          <View style={styles.budgetCopy}>
-            <Text style={styles.money}>{money(spent)}</Text>
-            <Text style={styles.sub}>
-              {money(remaining)} remaining of ${trip.budget.toFixed(0)} budget
+        {hasBudget ? (
+          <View style={styles.budget}>
+            <View style={styles.budgetCopy}>
+              <Text style={styles.money}>{money(spent)}</Text>
+              <Text style={styles.sub}>
+                {money(remaining)} remaining of ${trip.budget.toFixed(0)} budget
+              </Text>
+            </View>
+            <Ring progress={progress} />
+          </View>
+        ) : (
+          <View style={styles.noBudget}>
+            <Text style={styles.emptyTitle}>No budget yet</Text>
+            <Text style={styles.emptyBody}>
+              <Text style={styles.link} onPress={onSetBudget} accessibilityRole="link">
+                Set a budget
+              </Text>{' '}
+              to start tracking expenses.
             </Text>
           </View>
-          <Ring progress={progress} />
-        </View>
+        )}
 
         <Text style={layout.section}>Shared Log</Text>
         {trip.expenses.length === 0 ? (
@@ -47,9 +69,11 @@ export function CostsScreen({ trip, onLog }: { trip: Trip; onLog: () => void }) 
           ))
         )}
       </ScrollView>
-      <View style={layout.dock}>
-        <PrimaryButton label="Log Expense" onPress={onLog} icon={<Ionicons name="add" size={18} color={C.white} />} />
-      </View>
+      {hasBudget ? (
+        <View style={layout.dock}>
+          <PrimaryButton label="Log Expense" onPress={onLog} icon={<Ionicons name="add" size={18} color={C.white} />} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -75,6 +99,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: C.muted,
+  },
+  noBudget: {
+    marginTop: 18,
+    backgroundColor: C.white,
+    borderRadius: 16,
+    padding: 20,
+    ...cardShadow,
+  },
+  link: {
+    fontWeight: '700',
+    color: C.teal,
+    textDecorationLine: 'underline',
   },
   row: {
     flexDirection: 'row',

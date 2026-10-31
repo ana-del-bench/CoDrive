@@ -6,7 +6,8 @@ import { createTrip, isServerTrip, listTrips, logExpense, type AddressSuggestion
 import { MapBackdrop } from './src/components/MapBackdrop';
 import { TabBar } from './src/components/TabBar';
 import { CREW, IMG, TRIPS } from './src/data';
-import { formatTripDates, parseTripDates } from './src/dates';
+import { formatIso, formatTripDates } from './src/dates';
+import { currentDrivers, formatLimit } from './src/drivers';
 import { orderPayers, payerOptions, togglePayer } from './src/expenses';
 import { ConnectionDialog } from './src/screens/ConnectionDialog';
 import { CostsScreen } from './src/screens/CostsScreen';
@@ -19,9 +20,11 @@ import { PlanScreen } from './src/screens/PlanScreen';
 import { ProfileDialog } from './src/screens/ProfileDialog';
 import { RotationDialog } from './src/screens/RotationDialog';
 import { StopNoteDialog } from './src/screens/StopNoteDialog';
+import { TripSettingsScreen, type TripSettings } from './src/screens/TripSettingsScreen';
+import { applyEndpoints, spotFor, where } from './src/stops';
 import { C } from './src/theme';
 import { castVote } from './src/votes';
-import type { Crew, ExpenseType, Tab, Trip, Waypoint } from './src/types';
+import type { Crew, ExpenseType, Tab, Trip } from './src/types';
 
 function tripFromApi(row: ApiTrip): Trip {
   const created = new Date(row.created_at);
@@ -38,34 +41,19 @@ function tripFromApi(row: ApiTrip): Trip {
     crew: [{ id: 'you', name: 'You', initial: 'Y', color: '#E26D5A' }],
     waypoints: [],
     expenses: [],
-    budget: Number(row.budget) > 0 ? Number(row.budget) : 500,
+    budget: Number(row.budget) > 0 ? Number(row.budget) : 0,
+    drivers: [],
     duration: '—',
     leg: row.title,
     rest: { place: 'Nearest safe pull-off', distance: '—', note: 'We’ll mark it once you’re moving' },
   };
 }
 
-/** A stop's name and location, if it has a location. */
-function spotOf(stop: Waypoint | undefined): Spot | null {
-  if (!stop || typeof stop.latitude !== 'number' || typeof stop.longitude !== 'number') return null;
-  return { name: stop.title, latitude: stop.latitude, longitude: stop.longitude };
-}
-
-/** The picked place, but only while the text still says what was picked. */
-function spotFor(text: string, place: Spot | null): Spot | null {
-  return place && place.name === text ? place : null;
-}
-
-/** Coordinates to spread onto a stop. A stop keeps its old location if the new text was never picked from a list. */
-function where(spot: Spot | null, previous?: Waypoint): { latitude?: number; longitude?: number } {
-  if (spot) return { latitude: spot.latitude, longitude: spot.longitude };
-  // The text changed without picking a place, so the old coordinates no longer describe it.
-  return previous ? { latitude: undefined, longitude: undefined } : {};
-}
-
 function CoDrive() {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('home');
+  // Set when something sends you to a field on the Trip tab, so it can scroll there and focus it.
+  const [settingsFocus, setSettingsFocus] = useState<'budget' | null>(null);
   const [trips, setTrips] = useState<Trip[]>(TRIPS);
   const [selectedId, setSelectedId] = useState(TRIPS[0].id);
   const [createOpen, setCreateOpen] = useState(false);
@@ -78,16 +66,7 @@ function CoDrive() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [stopNote, setStopNote] = useState('');
   const [tripName, setTripName] = useState('');
-  const [startName, setStartName] = useState('');
-  const [endName, setEndName] = useState('');
-  const [startPlace, setStartPlace] = useState<Spot | null>(null);
-  const [endPlace, setEndPlace] = useState<Spot | null>(null);
   const [draftPlace, setDraftPlace] = useState<Spot | null>(null);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [tripBudget, setTripBudget] = useState('');
-  const [tripImage, setTripImage] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [expenseType, setExpenseType] = useState<ExpenseType | null>(null);
   const [expensePaidBy, setExpensePaidBy] = useState<string[]>([]);
   const [expenseName, setExpenseName] = useState('');
@@ -142,7 +121,6 @@ function CoDrive() {
       }
       if (createOpen) {
         setCreateOpen(false);
-        setEditingId(null);
         return true;
       }
       if (expenseOpen) {
@@ -180,15 +158,7 @@ function CoDrive() {
     }
   };
 
-  const budgetValue = parseFloat(tripBudget);
-  const createReady =
-    tripName.trim().length > 0 &&
-    startDate.length > 0 &&
-    endDate.length > 0 &&
-    endDate >= startDate &&
-    !Number.isNaN(budgetValue) &&
-    budgetValue > 0 &&
-    (editingId !== null || (startName.trim().length > 0 && endName.trim().length > 0));
+  const createReady = tripName.trim().length > 0;
   const amountValue = parseFloat(expenseAmount);
   const expenseReady =
     expenseType !== null &&
@@ -197,130 +167,35 @@ function CoDrive() {
     !Number.isNaN(amountValue) &&
     amountValue > 0;
 
-  const clearTripForm = () => {
-    setTripName('');
-    setStartName('');
-    setEndName('');
-    setStartPlace(null);
-    setEndPlace(null);
-    setStartDate('');
-    setEndDate('');
-    setTripBudget('');
-    setTripImage(null);
-    setEditingId(null);
-  };
-
   const openCreate = () => {
-    clearTripForm();
+    setTripName('');
     setCreateError(null);
     setCreateOpen(true);
   };
 
+  // Editing a trip from Home now means opening its Trip tab.
   const openEdit = (id: string) => {
-    const current = trips.find((item) => item.id === id);
-    if (!current) return;
-    const range = parseTripDates(current.dates);
-    setEditingId(id);
-    setTripName(current.title);
-    setStartName(current.waypoints.find((stop) => stop.detail === 'Start')?.title ?? '');
-    setEndName(current.waypoints.find((stop) => stop.detail === 'Destination')?.title ?? '');
-    setStartPlace(spotOf(current.waypoints.find((stop) => stop.detail === 'Start')));
-    setEndPlace(spotOf(current.waypoints.find((stop) => stop.detail === 'Destination')));
-    setStartDate(range.start);
-    setEndDate(range.end);
-    setTripBudget(String(current.budget));
-    setTripImage(current.image);
-    setCreateOpen(true);
+    setSelectedId(id);
+    setSettingsFocus(null);
+    setTab('trip');
   };
 
   const closeTripForm = () => {
     setCreateOpen(false);
-    setEditingId(null);
     setCreateError(null);
     setCreating(false);
   };
 
-  const placeWaypoints = (current: Trip, start: string, end: string, startSpot: Spot | null, endSpot: Spot | null) => {
-    let waypoints = current.waypoints.map((stop) => {
-      if (stop.detail === 'Start' && start) return { ...stop, title: start, ...where(startSpot, stop) };
-      if (stop.detail === 'Destination' && end) return { ...stop, title: end, ...where(endSpot, stop) };
-      return stop;
-    });
-    if (start && !waypoints.some((stop) => stop.detail === 'Start')) {
-      waypoints = [
-        {
-          id: `${current.id}-start`,
-          title: start,
-          detail: 'Start',
-          proposedBy: 'You',
-          likes: 1,
-          dislikes: 0,
-          vote: 'up',
-          image: IMG.coast,
-          time: '9:00 AM',
-          stop: 'Departure',
-          pin: '#E26D5A',
-          status: 'selected',
-          ...where(startSpot),
-        },
-        ...waypoints,
-      ];
-    }
-    if (end && !waypoints.some((stop) => stop.detail === 'Destination')) {
-      waypoints = [
-        ...waypoints,
-        {
-          id: `${current.id}-end`,
-          title: end,
-          detail: 'Destination',
-          proposedBy: 'You',
-          likes: 1,
-          dislikes: 0,
-          vote: 'up',
-          image: IMG.hills,
-          time: '—',
-          stop: 'Arrival',
-          pin: '#5B7CFA',
-          status: 'selected',
-          ...where(endSpot),
-        },
-      ];
-    }
-    return waypoints;
-  };
-
+  /** Creates a trip from just its name. Everything else is set on the Trip tab. */
   const handleCreate = async () => {
     if (!createReady || creating) return;
     const title = tripName.trim();
-    const start = startName.trim();
-    const end = endName.trim();
-    const dates = formatTripDates(startDate, endDate);
-    const image = tripImage ?? IMG.road;
-    const budget = budgetValue;
-    const startSpot = spotFor(start, startPlace);
-    const endSpot = spotFor(end, endPlace);
-
-    if (editingId) {
-      updateTrip(editingId, (current) => ({
-        ...current,
-        title,
-        routeName: current.routeName === current.title ? title : current.routeName,
-        dates,
-        budget,
-        image,
-        leg: start && end ? `${start} to ${end}` : current.leg,
-        waypoints: placeWaypoints(current, start, end, startSpot, endSpot),
-      }));
-      clearTripForm();
-      setCreateOpen(false);
-      return;
-    }
 
     setCreating(true);
     setCreateError(null);
     let created: { id: string; share_code: string };
     try {
-      created = await createTrip(title, budget);
+      created = await createTrip(title);
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : 'Could not create the trip');
       setCreating(false);
@@ -334,53 +209,50 @@ function CoDrive() {
       shareCode: created.share_code,
       title,
       routeName: title,
-      dates,
-      image,
+      dates: 'Dates TBD',
+      image: IMG.road,
       crew: [you, CREW[1], CREW[2]],
-      budget,
+      budget: 0,
+      drivers: [],
       duration: '—',
-      leg: `${start} to ${end}`,
+      leg: 'Add a start and end on the Trip tab',
       rest: { place: 'Nearest safe pull-off', distance: '—', note: 'We’ll mark it once you’re moving' },
       expenses: [],
-      waypoints: [
-        {
-          id: `${id}-start`,
-          title: start,
-          detail: 'Start',
-          proposedBy: 'You',
-          likes: 1,
-          dislikes: 0,
-          vote: 'up',
-          image: IMG.coast,
-          time: '9:00 AM',
-          stop: 'Departure',
-          pin: '#E26D5A',
-          status: 'selected',
-          ...where(startSpot),
-        },
-        {
-          id: `${id}-end`,
-          title: end,
-          detail: 'Destination',
-          proposedBy: 'You',
-          likes: 1,
-          dislikes: 0,
-          vote: 'up',
-          image: IMG.hills,
-          time: '—',
-          stop: 'Arrival',
-          pin: '#5B7CFA',
-          status: 'selected',
-          ...where(endSpot),
-        },
-      ],
+      waypoints: [],
     };
     setTrips((current) => [next, ...current]);
     setSelectedId(id);
-    clearTripForm();
+    setTripName('');
     setCreating(false);
     setCreateOpen(false);
     setInviteOpen(true);
+  };
+
+  const saveSettings = (settings: TripSettings) => {
+    if (!trip) return;
+    updateTrip(trip.id, (current) => {
+      const dates =
+        settings.startDate && settings.endDate
+          ? formatTripDates(settings.startDate, settings.endDate)
+          : settings.startDate
+            ? formatIso(settings.startDate)
+            : settings.endDate
+              ? `Until ${formatIso(settings.endDate)}`
+              : 'Dates TBD';
+      return {
+        ...current,
+        title: settings.title,
+        routeName: current.routeName === current.title ? settings.title : current.routeName,
+        dates,
+        startDate: settings.startDate || undefined,
+        endDate: settings.endDate || undefined,
+        budget: settings.budget,
+        image: settings.image,
+        drivers: settings.drivers,
+        leg: settings.start && settings.end ? `${settings.start} to ${settings.end}` : current.leg,
+        waypoints: applyEndpoints(current, settings.start, settings.end, settings.startSpot, settings.endSpot),
+      };
+    });
   };
 
   const requestStop = () => {
@@ -488,7 +360,8 @@ function CoDrive() {
     setExpenseOpen(false);
   };
 
-  const driver = trip?.crew[0]?.name ?? 'Ava';
+  const firstDriver = trip ? currentDrivers(trip)[0] : undefined;
+  const driver = firstDriver?.member.name ?? trip?.crew[0]?.name ?? 'Ava';
   const driverLine =
     driver === 'You'
       ? 'You have reached the group set drive limit of '
@@ -517,6 +390,7 @@ function CoDrive() {
                 <Text style={styles.emptyTabText}>Start a trip from Home to plan, drive, and split costs.</Text>
               </View>
             ) : null}
+            {tab === 'trip' && trip ? <TripSettingsScreen key={`${trip.id}-${settingsFocus ?? ''}`} trip={trip} onSave={saveSettings} focus={settingsFocus ?? undefined} /> : null}
             {tab === 'plan' && trip ? (
               <PlanScreen
                 trip={trip}
@@ -537,33 +411,31 @@ function CoDrive() {
                 onConnection={() => setConnectionOpen(true)}
               />
             ) : null}
-            {tab === 'costs' && trip ? <CostsScreen trip={trip} onLog={() => setExpenseOpen(true)} /> : null}
+            {tab === 'costs' && trip ? (
+              <CostsScreen
+                trip={trip}
+                onLog={() => setExpenseOpen(true)}
+                onSetBudget={() => {
+                  setSettingsFocus('budget');
+                  setTab('trip');
+                }}
+              />
+            ) : null}
           </View>
-          <TabBar tab={tab} onChange={setTab} paddingBottom={insets.bottom} />
+          <TabBar
+            tab={tab}
+            onChange={(next) => {
+              setSettingsFocus(null);
+              setTab(next);
+            }}
+            paddingBottom={insets.bottom}
+          />
         </View>
 
         {createOpen ? (
           <CreateTripDialog
-            editing={editingId !== null}
             name={tripName}
-            start={startName}
-            end={endName}
             onName={setTripName}
-            onStart={setStartName}
-            onEnd={setEndName}
-            onStartPick={setStartPlace}
-            onEndPick={setEndPlace}
-            startDate={startDate}
-            endDate={endDate}
-            budget={tripBudget}
-            image={tripImage}
-            onStartDate={(value) => {
-              setStartDate(value);
-              if (endDate && endDate < value) setEndDate('');
-            }}
-            onEndDate={setEndDate}
-            onBudget={setTripBudget}
-            onImage={setTripImage}
             onSubmit={handleCreate}
             onClose={closeTripForm}
             canSubmit={createReady}
@@ -600,6 +472,7 @@ function CoDrive() {
         {rotationOpen && trip ? (
           <RotationDialog
             driverLine={driverLine}
+            limit={firstDriver ? formatLimit(firstDriver.limitMinutes) : undefined}
             rest={trip.rest}
             onClose={() => setRotationOpen(false)}
             onAcknowledge={() => {
@@ -639,7 +512,7 @@ function CoDrive() {
             trip={trip}
             onDone={() => {
               setInviteOpen(false);
-              setTab('plan');
+              setTab('trip');
             }}
           />
         ) : null}

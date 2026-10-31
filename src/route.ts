@@ -1,3 +1,4 @@
+import { hasEndpoints, roleOf } from './stops';
 import type { Trip, Waypoint } from './types';
 
 export type LocatedStop = Waypoint & { latitude: number; longitude: number };
@@ -41,18 +42,19 @@ const MOST_TO_TRY_ALL = 8;
 
 /** The stop the trip is heading for, which always stays last. */
 function isDestination(stop: Waypoint) {
-  return stop.detail === 'Destination' || stop.stop === 'Arrival';
+  return roleOf(stop) === 'end' || stop.stop === 'Arrival';
 }
 
 /**
- * Puts the middle stops in the shortest order. The first stop stays first, and a stop marked
- * "Destination" or "Arrival" stays last. Distances are straight-line, which is a good guide for choosing an order.
+ * Puts the middle stops in the shortest order. The Start stays first (or the first stop if none is marked), and the End,
+ * or a stop marked "Arrival", stays last. Distances are straight-line, which is a good guide for choosing an order.
  * Up to 8 middle stops are checked exhaustively; beyond that a nearest-neighbour pass plus 2-opt is used.
  */
 export function orderStops(stops: LocatedStop[]): LocatedStop[] {
   if (stops.length <= 2) return stops;
-  const first = stops[0];
-  const rest = stops.slice(1);
+  const startAt = Math.max(0, stops.findIndex((stop) => roleOf(stop) === 'start'));
+  const first = stops[startAt];
+  const rest = stops.filter((stop) => stop !== first);
   const endIndex = rest.findIndex(isDestination);
   const end = endIndex === -1 ? null : rest[endIndex];
   const middle = rest.filter((stop) => stop !== end);
@@ -103,8 +105,12 @@ function hasLocation(stop: Waypoint): stop is LocatedStop {
   return typeof stop.latitude === 'number' && typeof stop.longitude === 'number';
 }
 
-/** Stops on the route: only the selected ones with a location, in the shortest order. */
+/**
+ * Stops on the route: only the selected ones with a location, in the shortest order.
+ * Nothing is routed until the trip has both a Start and an End.
+ */
 export function routedStops(trip: Trip): LocatedStop[] {
+  if (!hasEndpoints(trip)) return [];
   return orderStops(trip.waypoints.filter((stop): stop is LocatedStop => stop.status === 'selected' && hasLocation(stop)));
 }
 

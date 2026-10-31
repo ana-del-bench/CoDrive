@@ -1,11 +1,16 @@
+import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { C, layout } from '../theme';
 import type { Trip } from '../types';
+import { BottomSheet } from '../components/BottomSheet';
 import { TripMap } from '../components/TripMap';
 import { drivingStops, duration, miles, routedStops, schedule, shortLabel } from '../route';
 import { legAt, OFF_ROUTE_METERS, progressAlong } from '../progress';
 import { useCarPosition } from '../useCarPosition';
+import { currentDrivers } from '../drivers';
+import { driverAt, planDriverLegs, sectionsFor } from '../driverLegs';
+import { hasEndpoints } from '../stops';
 import { useRoute } from '../useRoute';
 
 export function DriveScreen({
@@ -21,7 +26,9 @@ export function DriveScreen({
   onRotation: () => void;
   onConnection: () => void;
 }) {
-  const driver = trip.crew[0];
+  const [height, setHeight] = useState(0);
+  const drivers = currentDrivers(trip);
+  const ready = hasEndpoints(trip);
   const stops = routedStops(trip);
   const { plan, failed, loading } = useRoute(stops);
   const itinerary = drivingStops(trip);
@@ -38,7 +45,9 @@ export function DriveScreen({
       ? failed
         ? 'Route unavailable'
         : 'Finding the route…'
-      : 'Select 2 stops with locations to track progress'
+      : ready
+        ? 'Select 2 stops with locations to track progress'
+        : 'Add a start and end to build the route'
     : locationStatus === 'denied'
       ? 'Allow location to track progress'
       : locationStatus === 'unavailable'
@@ -56,13 +65,33 @@ export function DriveScreen({
       ? `Current leg: ${legStart.title} to ${legEnd.title}${plan ? ` · ${miles(plan.legs[legIndex]?.distanceMeters ?? plan.distanceMeters)}` : ''}${
           loading ? ' · finding the route…' : failed ? ' · route unavailable, showing a straight line' : ''
         }`
-      : itinerary.length === 0
-        ? 'No stops selected yet. Give a stop a thumbs up on the Plan tab.'
-        : trip.leg;
+      : !ready
+        ? 'Add a start and end on the Trip tab to build the route.'
+        : itinerary.length === 0
+          ? 'No stops selected yet. Give a stop a thumbs up on the Plan tab.'
+          : trip.leg;
   const timings = plan ? schedule(stops, plan.legs) : null;
 
+  // With more than one driver, the route is split into a stretch for each, in the crew's colours.
+  const driverLegs =
+    plan && drivers.length > 1
+      ? planDriverLegs({
+          path: plan.path,
+          stops,
+          legSeconds: plan.legs.map((leg) => leg.timeSeconds),
+          drivers: drivers.map((item) => ({ crewId: item.member.id, limitMinutes: item.limitMinutes })),
+        })
+      : [];
+  const colorOf = (crewId: string) => trip.crew.find((member) => member.id === crewId)?.color ?? C.teal;
+  const sections = plan
+    ? sectionsFor(plan.path, driverLegs).map((section) => ({ color: colorOf(section.crewId), path: section.path }))
+    : [];
+  // The driver on the stretch the car is on now, or the first driver before the trip starts.
+  const turn = driverLegs.length > 0 ? (onRoute && along ? driverAt(driverLegs, along.alongMeters) : driverLegs[0]) : undefined;
+  const driver = trip.crew.find((member) => member.id === turn?.crewId) ?? drivers[0]?.member ?? trip.crew[0];
+
   return (
-    <View style={layout.fill}>
+    <View style={layout.fill} onLayout={(event) => setHeight(event.nativeEvent.layout.height)}>
       <View style={[styles.mapWrap, fullMap && layout.fill]}>
         <TripMap
           stops={stops.map((stop) => ({
@@ -72,6 +101,8 @@ export function DriveScreen({
             label: shortLabel(stop.title),
           }))}
           path={plan?.path}
+          me={position}
+          sections={sections}
         />
         <View style={styles.driverPill}>
           <View style={[styles.mini, { backgroundColor: driver?.color ?? C.teal }]} />
@@ -96,6 +127,18 @@ export function DriveScreen({
           <View style={styles.routing}>
             <Text style={styles.routingTitle}>Routing {trip.routeName}</Text>
             <Text style={styles.routingLeg}>{legLine}</Text>
+            {driverLegs.length > 1 ? (
+              <View style={styles.legend}>
+                {driverLegs.map((leg, index) => (
+                  <View key={`${leg.crewId}-${index}`} style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: colorOf(leg.crewId) }]} />
+                    <Text style={styles.legendText}>
+                      {trip.crew.find((member) => member.id === leg.crewId)?.name ?? 'Driver'} · {miles(leg.toMeters - leg.fromMeters)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             <View style={styles.track}>
               <View style={[styles.fill, { width: `${Math.round(fraction * 100)}%` }]} />
             </View>
@@ -105,9 +148,7 @@ export function DriveScreen({
       </View>
 
       {!fullMap ? (
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>Today's Itinerary</Text>
+        <BottomSheet title="Today's Itinerary" containerHeight={height}>
           <ScrollView style={layout.fill} contentContainerStyle={styles.itinerary} showsVerticalScrollIndicator={false}>
             {itinerary.map((stop, index) => (
               <View key={stop.id} style={styles.row}>
@@ -132,7 +173,7 @@ export function DriveScreen({
               {plan ? `${miles(plan.distanceMeters)} · ` : ''}Live with your crew · weather along the route
             </Text>
           </View>
-        </View>
+        </BottomSheet>
       ) : null}
     </View>
   );
@@ -218,6 +259,29 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: 'rgba(255,255,255,0.78)',
   },
+  legend: {
+    marginTop: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  legendText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.85)',
+  },
   track: {
     marginTop: 10,
     height: 6,
@@ -235,30 +299,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#D7F7F0',
-  },
-  sheet: {
-    flex: 1,
-    marginTop: -18,
-    backgroundColor: C.white,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E4DFD6',
-    marginBottom: 12,
-    marginTop: 4,
-  },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: C.ink,
-    marginBottom: 14,
   },
   itinerary: {
     paddingBottom: 8,

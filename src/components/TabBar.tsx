@@ -6,10 +6,11 @@ import type { Tab } from '../types';
 const TABS: {
   id: Tab;
   label: string;
-  icon: 'home' | 'map' | 'navigate' | 'wallet';
-  idle: 'home-outline' | 'map-outline' | 'navigate-outline' | 'wallet-outline';
+  icon: 'home' | 'settings' | 'map' | 'navigate' | 'wallet';
+  idle: 'home-outline' | 'settings-outline' | 'map-outline' | 'navigate-outline' | 'wallet-outline';
 }[] = [
   { id: 'home', label: 'Home', icon: 'home', idle: 'home-outline' },
+  { id: 'trip', label: 'Trip', icon: 'settings', idle: 'settings-outline' },
   { id: 'plan', label: 'Plan', icon: 'map', idle: 'map-outline' },
   { id: 'drive', label: 'Drive', icon: 'navigate', idle: 'navigate-outline' },
   { id: 'costs', label: 'Split', icon: 'wallet', idle: 'wallet-outline' },
